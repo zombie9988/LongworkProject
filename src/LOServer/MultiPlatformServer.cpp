@@ -120,7 +120,7 @@ int startListenSocket(int socketServer)
 
 		while (doListen)
 		{
-            if (socketClient = accept(socketServer, (sockaddr*)&clientAddr, &clientAddrSize) < 0)
+            if ((socketClient = accept(socketServer, (sockaddr*)&clientAddr, &clientAddrSize)) < 0)
             {
                 cout << "Failed to accept socket" << strerror(errno) << endl;
                 CLOSE(socketServer);
@@ -143,28 +143,28 @@ int startListenSocket(int socketServer)
 
 		char jobIdentifier = '0';
 		char* buf = new char[1024];
-		int receiveArg = -1;
+		int receiveArg = 0;
 		bool receiveFlag = true;
 		//Вот с этого момента мы начинаем прослушивать сокет, с которого идет запрос
 		while (receiveFlag)
 		{
 			//Пока мы приняли меньше чем 0 байт мы продолжаем слушать
-			while (receiveArg < 0)
+			while (receiveArg == 0)
 			{
 				receiveArg = recv(socketClient, buf, sizeof(char), 0);
 			}
 
 			//Обработка ошибки, на случай, если отключится пользователь
-			if (receiveArg == 0)
+			if (receiveArg == -1)
 			{
-				cout << getStrTime() << "User: " << host->h_name << " disconnected!" << endl;
+				cout << getStrTime() << "User: " << host->h_name << " disconnected!" << strerror(errno) << endl;
 				break;
 			}
 
 			//Получаем идентификатор необходимого действия
 			jobIdentifier = buf[0];
 			buf[0] = '0';
-			receiveArg = -1;
+			receiveArg = 0;
 			string command;
 			Data data;
 
