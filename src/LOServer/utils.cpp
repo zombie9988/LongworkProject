@@ -8,6 +8,19 @@ int runFile(string cmd)
     return system(cmd.c_str());
 }
 
+int writeFile(Data &data, char* fileName)
+{
+    ofstream outFile(fileName, ios::binary);
+
+    outFile.write(data.bufPointer, data.len);
+
+    cout << getStrTime() << fileName << "Was written!" << endl;
+
+    outFile.close();
+
+    return 1;
+}
+
 string getStrTime()
 {
 	time_t seconds = time(NULL);

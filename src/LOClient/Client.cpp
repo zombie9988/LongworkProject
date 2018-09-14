@@ -118,10 +118,110 @@ int runApplication(int receivedSocket)
 	return 1;
 }
 
-//В разработке
-void sendFile(int receivedSocket)
+//Функция, которая занимается отправкой файла
+int sendFile(int receivedSocket)
 {
-	return;
+    //Здесь вводится путь к файлу
+    //todo: Написать регулярку, которая будет отсекать имя файла от пути.
+	string filePath;
+
+	cout << "Enter path to file:" << endl;
+    ifstream file;
+    while(!file.is_open())
+    {
+        filePath = "";
+
+        while (filePath == "")
+        {
+            getline(cin, filePath);
+        }
+
+    file.open (filePath.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+    if (!file.is_open()) cout << "Bad file path!" << endl;
+    }
+
+    //Создаем буффер для имени файла, размер которого равен размеру строки в байтах
+	char* fileName = new char[filePath.size()*sizeof(char) + 1];
+
+	//Чтобы избавится от константности не просто приравнием, а копируем строку
+	strcpy(fileName, filePath.c_str());
+
+	//Создаем буфер, в котором будет храниться размер передаваемых данных
+	char* fileNameSize = new char[1024];
+
+	//Переводим размер данных в строковое представление
+	itoa(filePath.size()*sizeof(char), fileNameSize, 1024);
+
+	//Посылаем информацию о размере данных об имени файла
+	if (sendall(receivedSocket, fileNameSize, 1024, 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete fileName;
+        delete fileNameSize;
+        return -1;
+    }
+
+	//Посылаем само имя
+	if (sendall(receivedSocket, fileName, (filePath.size() + 1) * sizeof(char), 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete fileName;
+        delete fileNameSize;
+        return -1;
+    }
+
+	delete fileName;
+	delete fileNameSize;
+
+    //Получаем информацию о размере файла
+    file.seekg(0, std::ios_base::end);
+    std::ifstream::pos_type endPos = file.tellg();
+    file.seekg(0, std::ios_base::beg);
+    int fileSize = static_cast<int>(endPos - file.tellg());
+
+	char* dataBuf = new char[fileSize*sizeof(char) + 1];
+
+	file.read(dataBuf, fileSize*sizeof(char));
+
+    if (file)
+      std::cout << "All characters read successfully.";
+    else
+      std::cout << "Error: only " << file.gcount() << " could be read";
+
+	//Создаем буфер, в котором будет храниться размер передаваемых данных
+	char* datasize = new char[1024];
+
+	//Переводим размер данных в строковое представление
+	itoa(fileSize*sizeof(char), datasize, 1024);
+
+    stringstream ss;
+    ss <<fileSize*sizeof(char);
+    string myString = ss.str();
+    strcpy(datasize, myString.c_str());
+
+	//Посылаем информацию о размере файла
+	if (sendall(receivedSocket, datasize, 1024, 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete dataBuf;
+        delete datasize;
+        return -1;
+    }
+
+	//Посылаем сам файл
+	if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1, 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete dataBuf;
+        delete datasize;
+        return -1;
+    }
+
+    file.close();
+	delete dataBuf;
+	delete datasize;
+
+	return 1;
 }
 
 //В разработке
@@ -157,7 +257,7 @@ int main()
 	{
 		cout << "0.  Exit" << endl;
 		cout << "1. Run Application" << endl;
-		cout << "2. smth" << endl;
+		cout << "2. Send File" << endl;
 		cout << "3. smth" << endl;
 		cout << "4. smth" << endl;
 
@@ -174,15 +274,14 @@ int main()
 		{
 		case 1:
 			system("cls");
-			sent = sendIdenty(receivedSocket, '1');
-			if (sent< 0)
+			if ((sent = sendIdenty(receivedSocket, '1'))< 0)
             {
                 cout << "Connection with server was lost: " << endl;
                 WSACleanup();
                 return -1;
             }
 
-			if (runApplication(receivedSocket) < 0)
+			if ((runApplication(receivedSocket)) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
                 WSACleanup();
@@ -193,8 +292,19 @@ int main()
 
 		case 2:
 			system("cls");
-			sendIdenty(receivedSocket, '2');
-			sendFile(receivedSocket);
+			if ((sent = sendIdenty(receivedSocket, '2'))< 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
+
+			if ((sendFile(receivedSocket)) < 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
 			system("cls");
 			break;
 

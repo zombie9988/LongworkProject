@@ -6,6 +6,7 @@
 #include <errno.h>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <stdio.h>
 #include <tchar.h>
 #include <stdio.h>

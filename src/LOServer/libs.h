@@ -2,10 +2,6 @@
 
 #include "mainHeader.h"
 
-int runFile(std::string cmd);
-
-std::string getStrTime();
-
 struct Data
 {
 	size_t len;
@@ -22,3 +18,7 @@ struct Data
 		delete bufPointer;
 	}
 };
+
+int runFile(std::string cmd);
+int writeFile(Data &data, char* fileName);
+std::string getStrTime();

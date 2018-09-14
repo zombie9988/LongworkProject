@@ -167,6 +167,7 @@ int startListenSocket(int socketServer)
 			receiveArg = 0;
 			string command;
 			Data data;
+			Data eData;
 
 			//В зависимости от него, смотрим, какую задачу выполнять
 			switch (jobIdentifier)
@@ -187,7 +188,28 @@ int startListenSocket(int socketServer)
 				jobIdentifier = '0';
 				break;
 			case '2':
-				cout << "Succeed second identy!" << endl;
+				cout << "Wait to file name!" << endl;
+
+                //Сначала принимаем имя файла
+                if (!receiveAll(socketClient, eData))
+				{
+					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+                cout << getStrTime() << "Getting file by name: " << eData.bufPointer << endl;
+
+                //Здесь принимаем сам файл
+				if (!receiveAll(socketClient, data))
+				{
+					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+                //Функция по записи файла
+                writeFile(data, eData.bufPointer);
 				jobIdentifier = '0';
 				break;
 			case '3':

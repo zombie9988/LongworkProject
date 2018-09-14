@@ -9,6 +9,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <unistd.h>
+#include <fstream>
 #include <string.h>
 #include <errno.h>
 #include <ctime>
