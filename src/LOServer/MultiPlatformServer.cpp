@@ -238,15 +238,15 @@ int startListenSocket(int socketServer)
 
 int main()
 {
-	string ip;
+	string ip = "192.168.1.253";
 	cout << "Enter IP address: ";
-	cin >> ip;
+	//cin >> ip;
 
 	int socketServer = startServer(ip.c_str());
 
 	if (socketServer > 0)
 	{
-		while (startListenSocket(socketServer) >= 0) {}
+		while (startListenSocket(socketServer) >= 0);
 	}
 	else
 	{
