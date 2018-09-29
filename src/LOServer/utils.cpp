@@ -14,7 +14,7 @@ int writeFile(Data &data, char* fileName)
 
     outFile.write(data.bufPointer, data.len);
 
-    cout << getStrTime() << fileName << "Was written!" << endl;
+    cout << getStrTime() << fileName << " Was written!" << endl;
 
     outFile.close();
 
