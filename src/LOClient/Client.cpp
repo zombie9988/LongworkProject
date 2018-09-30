@@ -229,15 +229,76 @@ int sendFile(int receivedSocket)
 }
 
 //В разработке
-void getFile(int receivedSocket)
+int getFile(int receivedSocket)
 {
-	return;
+    string filePath;
+
+    cout << "Enter path to file: " << endl;
+
+    getline(cin, filePath);
+
+    char* path     = new char[filePath.size()*sizeof(char) + 1];
+    char* pathSize = new char[1024];
+
+    strcpy(path, filePath.c_str());
+    itoa(filePath.size()*sizeof(char), pathSize, 10);
+
+    if (sendall(receivedSocket, pathSize, 1024, 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete path;
+        delete pathSize;
+        return -1;
+    }
+
+    if (sendall(receivedSocket, path, (filePath.size() + 1) * sizeof(char), 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete path;
+        delete pathSize;
+        return -1;
+    }
+
+	delete path;
+	delete pathSize;
+
+	return 1;
 }
 
-//В разработке
-void deleteFile(int receivedSocket)
+int deleteFile(int receivedSocket)
 {
-	return;
+    string filePath;
+
+    cout << "Enter path to file: " << endl;
+
+    getline(cin, filePath);
+
+    char* path     = new char[filePath.size()*sizeof(char) + 1];
+    char* pathSize = new char[1024];
+
+    strcpy(path, filePath.c_str());
+    itoa(filePath.size()*sizeof(char), pathSize, 10);
+
+    if (sendall(receivedSocket, pathSize, 1024, 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete path;
+        delete pathSize;
+        return -1;
+    }
+
+    if (sendall(receivedSocket, path, (filePath.size() + 1) * sizeof(char), 0) < 0)
+    {
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        delete path;
+        delete pathSize;
+        return -1;
+    }
+
+	delete path;
+	delete pathSize;
+
+	return 1;
 }
 
 int main()
@@ -262,9 +323,9 @@ int main()
 	{
 		cout << "1. Run Application" << endl;
 		cout << "2. Send File" << endl;
-		cout << "3. smth" << endl;
-		cout << "4. smth" << endl;
-		cout << "0. Exit" << endl;
+		cout << "3. Get file" << endl;
+		cout << "4. Delete file" << endl << endl;
+		cout << "0. Exit" << endl << endl;
 
 		int option = 0;
 		int sent;
@@ -293,6 +354,7 @@ int main()
                 WSACleanup();
                 return -1;
             }
+
 			system("cls");
 			break;
 
@@ -311,20 +373,45 @@ int main()
                 WSACleanup();
                 return -1;
             }
+
 			system("cls");
 			break;
 
 		case 3:
 			system("cls");
-			sendIdenty(receivedSocket, '3');
-			getFile(receivedSocket);
+			if ((sent = sendIdenty(receivedSocket, '3')) < 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
+
+			if (getFile(receivedSocket) < 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
+
 			system("cls");
 			break;
 
 		case 4:
 			system("cls");
-			sendIdenty(receivedSocket, '4');
-			deleteFile(receivedSocket);
+			if ((sent = sendIdenty(receivedSocket, '4')) < 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
+
+			if((deleteFile(receivedSocket)) < 0)
+            {
+                cout << "Connection with server was lost: " << endl;
+                WSACleanup();
+                return -1;
+            }
+
 			system("cls");
 			break;
 		case 0:
