@@ -1,6 +1,7 @@
 #pragma once
 
 #include "mainHeader.h"
+#include <fstream>
 
 struct Data
 {

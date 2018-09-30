@@ -1,5 +1,6 @@
 ﻿#include "pch.h"
 #include "libs.h"
+#include <fstream>
 
 //функция, которая принимает все отправленные байты
 int receiveAll(int receivedSocket, Data &data)
@@ -213,21 +214,54 @@ int startListenSocket(int socketServer)
 				jobIdentifier = '0';
 				break;
 			case '3':
-				cout << "Succeed third identy!" << endl;
-				jobIdentifier = '0';
-				break;
-			case '4':
-				cout << "Succeed fourth identy!" << endl;
-				jobIdentifier = '0';
-				break;
-			}
+            {
+				cout << "Wait to file path!" << endl;
 
-			if (jobIdentifier == '5')
-			{
-				cout << getStrTime() << "User: " << host->h_name << " disconnected!" << endl;
+				if (!receiveAll(socketClient, eData))
+				{
+					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+
+				jobIdentifier = '0';
 				break;
 			}
-		}
+			case '4':
+				cout << "Wait to file path!" << endl;
+
+				if (!receiveAll(socketClient, eData))
+				{
+					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+                cout << getStrTime() << "Deleting a file: " << eData.bufPointer << endl;
+
+                string stringPath;
+
+                for (int i = 0; i < eData.len; ++i)
+                {
+                    stringPath.push_back(eData.bufPointer[i]);
+
+                    if (eData.bufPointer[i] == '\\')
+                        stringPath.push_back('\\');
+                }
+
+                remove(stringPath.c_str()) ? printf("%s", "Deleting error!") : printf("%s", "Deleting successful!");
+
+				jobIdentifier = '0';
+				break;
+
+                if (jobIdentifier == '5')
+                {
+                    cout << getStrTime() << "User: " << host->h_name << " disconnected!" << endl;
+                    break;
+                }
+			}
+        }
 	}
 
 	CLOSE(socketServer);
