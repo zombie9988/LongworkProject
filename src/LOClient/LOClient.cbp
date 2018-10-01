@@ -41,6 +41,12 @@
 			<Add option="-static-libgcc -static-libstdc++" />
 			<Add library="ws2_32" />
 		</Linker>
+		<Unit filename="../libAES/aes.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../libAES/aes.h" />
+		<Unit filename="../libAES/aes.hpp" />
+		<Unit filename="../libAES/crypto.h" />
 		<Unit filename="Client.cpp" />
 		<Unit filename="Data.h" />
 		<Unit filename="stdafx.cpp" />

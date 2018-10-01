@@ -17,6 +17,7 @@
 				<Linker>
 					<Add option="-static-libgcc -static-libstdc++" />
 					<Add library="ws2_32" />
+					<Add library="../libAES/bin/Release/libAES.a" />
 				</Linker>
 			</Target>
 			<Target title="Release">
@@ -31,6 +32,7 @@
 					<Add option="-s" />
 					<Add option="-static-libgcc -static-libstdc++" />
 					<Add library="ws2_32" />
+					<Add library="../libAES/bin/Release/libAES.a" />
 				</Linker>
 			</Target>
 		</Build>
@@ -41,7 +43,14 @@
 		<Linker>
 			<Add option="-static-libgcc -static-libstdc++" />
 			<Add library="ws2_32" />
+			<Add library="../libAES/bin/Release/libAES.a" />
 		</Linker>
+		<Unit filename="../libAES/aes.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="../libAES/aes.h" />
+		<Unit filename="../libAES/aes.hpp" />
+		<Unit filename="../libAES/crypto.h" />
 		<Unit filename="MultiPlatformServer.cpp" />
 		<Unit filename="libs.h" />
 		<Unit filename="linuxInclude.h" />
