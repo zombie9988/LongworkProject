@@ -1,7 +1,7 @@
 #pragma once
 
 #include "stdafx.h"
-
+using namespace std;
 struct Data
 {
 	size_t len;

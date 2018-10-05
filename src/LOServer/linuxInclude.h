@@ -15,3 +15,5 @@
 #include <ctime>
 #include <cstdio>
 #include <fstream>
+#include <sstream>
+#include <conio.h>

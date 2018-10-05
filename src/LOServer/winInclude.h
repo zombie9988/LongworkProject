@@ -14,3 +14,5 @@
 #include <string.h>
 #include <ws2tcpip.h>
 #include <ctime>
+#include <sstream>
+#include <conio.h>
