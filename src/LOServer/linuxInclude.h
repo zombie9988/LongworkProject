@@ -17,3 +17,6 @@
 #include <fstream>
 #include <sstream>
 #include <conio.h>
+#include <locale>
+#include <codecvt>
+#include <cstdlib>

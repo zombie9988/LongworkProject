@@ -403,7 +403,28 @@ int startListenSocket(int socketServer)
                     #endif
                 }
 
-                remove(stringPath.c_str()) ? printf("%s", "Deleting error!") : printf("%s", "Deleting successful!");
+                wstring wPath;
+
+                for(int i = 0; i < stringPath.size(); i++)
+                {
+                    wchar_t* symb = new wchar_t[1];
+                    mbtowc(symb, (const char*)&stringPath.c_str()[i], 1);
+                    wPath.push_back(symb[0]);
+                }
+
+                wPath[stringPath.size()] = L'\0';
+
+                wcout << wPath << endl;
+
+                wstring test(wPath);
+
+                if (test == L"C:\\\\Users\\\\User\\\\Desktop\\\\Дюха.txt")
+                    cout << "Equal" << endl;
+                else
+                    cout << "Not equal" << endl;
+
+                if(_wremove(wPath.c_str()))
+                    cout << strerror(errno) << endl;
 
 				jobIdentifier = '0';
 				break;
