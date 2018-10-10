@@ -5,6 +5,7 @@
 
 #include <errno.h>
 #include <string>
+#include <stdlib.h>
 #include <iostream>
 #include <stdio.h>
 #include <tchar.h>
@@ -19,3 +20,4 @@
 #include <locale>
 #include <codecvt>
 #include <cstdlib>
+#include <fstream>

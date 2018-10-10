@@ -1,16 +1,16 @@
 #pragma once
 
 #ifdef _WIN32
-	#include "winInclude.h"
+	#include "winInclude.hpp"
 	#define CLOSE closesocket
 
 #elif __linux__
-	#include "linuxInclude.h"
+	#include "linuxInclude.hpp"
 	#define CLOSE close
 	#define START_SOCKET_SERVER() \
 
 #elif __unix__ // all unices not caught above
-	#include "linuxInclude.h"
+	#include "linuxInclude.hpp"
 	#define CLOSE close
 	#define START_SOCKET_SERVER() \
 
