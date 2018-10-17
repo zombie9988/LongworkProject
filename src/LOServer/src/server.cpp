@@ -3,7 +3,7 @@
 //Функция, стартующая сервер
 int startServer(const char* ip)
 {
-	#ifdef _WIN32
+#ifdef _WIN32
 		WSADATA wsaData;
 		WORD wVersionRequested = MAKEWORD(2, 2);
 
@@ -12,7 +12,7 @@ int startServer(const char* ip)
 			printf("WSAStartup failed with error: %d\n", error);
 			return -1;
 		}
-	#endif
+#endif
 
 	int socketServer = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -25,7 +25,7 @@ int startServer(const char* ip)
 	sockaddr_in addr;
 
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(1337);
+	addr.sin_port = htons(PORT);
 	addr.sin_addr.s_addr = inet_addr(ip);
 
 	if (bind(socketServer, (sockaddr*)&addr, sizeof(addr)))
@@ -91,34 +91,42 @@ int startListenSocket(int socketServer)
 		}
 
 		char jobIdentifier = '0';
-		char* buf = new char[1024];
 		int receiveArg = 0;
 		bool receiveFlag = true;
-		//Вот с этого момента мы начинаем прослушивать сокет, с которого идет запрос
+
 		while (receiveFlag)
 		{
-			//Пока мы приняли меньше чем 0 байт мы продолжаем слушать
-			while (receiveArg == 0)
-			{
-				receiveArg = recv(socketClient, buf, sizeof(char), 0);
-			}
+		    try
+		    {
+		        char* buf = new char[BUF_LEN];
 
-			//Обработка ошибки, на случай, если отключится пользователь
-			if (receiveArg == -1)
-			{
-				cout << getStrTime() << "User: " << host->h_name << " disconnected! Because of: " << strerror(errno) << endl;
-				break;
-			}
+                while (receiveArg == 0)
+                {
+                    receiveArg = recv(socketClient, buf, sizeof(char), 0);
+                }
 
-			//Получаем идентификатор необходимого действия
-			jobIdentifier = buf[0];
-			buf[0] = '0';
+                if (receiveArg == -1)
+                {
+                    cout << getStrTime() << "User: " << host->h_name << " disconnected! Because of: " << strerror(errno) << endl;
+                    break;
+                }
+
+                jobIdentifier = buf[0];
+                buf[0] = '0';
+
+                delete buf;
+		    }
+		    catch(bad_alloc& ba)
+		    {
+		        cerr << "Out of memory." << ba.what() << endl;
+		        return -1;
+		    }
+
 			receiveArg = 0;
 			string command;
 			Data data;
 			Data eData;
 
-			//В зависимости от него, смотрим, какую задачу выполнять
 			switch (jobIdentifier)
 			{
 			case '1':
@@ -139,7 +147,6 @@ int startListenSocket(int socketServer)
 			case '2':
 				cout << getStrTime() << "Wait to file name!" << endl;
 
-                //Сначала принимаем имя файла
                 if (!receiveAll(socketClient, eData))
 				{
 					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
@@ -149,7 +156,6 @@ int startListenSocket(int socketServer)
 
                 cout << getStrTime() << "Getting file by name: " << eData.bufPointer << endl;
 
-                //Здесь принимаем сам файл
 				if (!receiveAll(socketClient, data))
 				{
 					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
@@ -157,7 +163,6 @@ int startListenSocket(int socketServer)
 					break;
 				}
 
-                //Функция по записи файла
                 writeFile(data, eData.bufPointer);
 				jobIdentifier = '0';
 				break;
@@ -171,7 +176,9 @@ int startListenSocket(int socketServer)
 					receiveFlag = false;
 					break;
 				}
+
                 int result = sendFile(socketClient, eData);
+
                 if(result == 42)
                 {
                     break;
@@ -179,13 +186,13 @@ int startListenSocket(int socketServer)
                 else if(result)
                 {
                     cout << getStrTime() << "All is good!" << endl;
-                    sendall(socketClient, "good", 5, 0);
+                    sendall(socketClient, "good", 5);
                 }
                 else
                 {
                     cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
                     receiveFlag = false;
-                    sendall(socketClient, "bad ", 5, 0);
+                    sendall(socketClient, "bad ", 5);
                     break;
                 }
 
@@ -216,7 +223,7 @@ int startListenSocket(int socketServer)
                         stringPath.push_back('/');
                     #endif
                 }
-                
+
 				ifstream file;
 
    				file.open (stringPath.c_str(), std::ios::in | std::ios::binary | std::ios::ate);

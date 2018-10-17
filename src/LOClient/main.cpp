@@ -10,10 +10,9 @@ int main()
 
 	cout << "Enter server ip: ";
 	cin >> ip;
-    //ip = "192.168.1.253";
 
 	cout << "Enter server port: ";
-	cin >> port;
+    cin >> port;
 
 	cout << endl;
 
@@ -21,12 +20,11 @@ int main()
 
 	if (receivedSocket < 0)  return -1;
 
-	//Здесь начинается обратботка запросов
 	if  (processRequest(receivedSocket) < 0)
 	{
 		cout << "Bad Exit" << endl;
-	} 
-	else 
+	}
+	else
 	{
 		cout << "Good exit" << endl;
 	}

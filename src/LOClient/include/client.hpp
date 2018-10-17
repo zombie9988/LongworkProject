@@ -3,6 +3,8 @@
 #include "Data.hpp"
 #include "includes.hpp"
 
+#define BUF_LEN 1024
+
 int processRequest(int receivedSocket);
 int connectToServer(string ip, string port);
 int sendIdenty(int receivedSocket, const char id);

@@ -1,3 +1,5 @@
+#pragma comment(lib,"Ws2_32.lib")
+
 #include "mainHeader.hpp"
 #include "utils.hpp"
 

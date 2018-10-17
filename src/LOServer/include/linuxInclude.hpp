@@ -21,3 +21,4 @@
 #include <locale>
 #include <codecvt>
 #include <cstdlib>
+#include <new>

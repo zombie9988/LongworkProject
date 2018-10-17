@@ -6,7 +6,7 @@ using namespace std;
 int main()
 {
     string ip;
-	//string ip = "192.168.1.253";
+
 	cout << "Enter IP address: ";
 	cin >> ip;
 

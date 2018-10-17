@@ -21,3 +21,4 @@
 #include <codecvt>
 #include <cstdlib>
 #include <fstream>
+#include <new>

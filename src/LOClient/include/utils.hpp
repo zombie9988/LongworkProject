@@ -5,4 +5,4 @@
 
 int writeFile(Data &data, char* fileName);
 int receiveAll(int receivedSocket, Data &data);
-int sendall(int receivedSocket, const char *buf, int len, int flags);
+int sendall(int receivedSocket, const char *buf, int len);

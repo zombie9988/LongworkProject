@@ -25,73 +25,58 @@ string getStrTime()
 	time_t seconds = time(NULL);
 	tm* timeinfo = localtime(&seconds);
 	char buffer[80];
-	const char* format = "[%H:%M:%S] ";
+	string format = "[%H:%M:%S] ";
 
-	strftime(buffer, 80, format, timeinfo);
+	strftime(buffer, 80, format.c_str(), timeinfo);
 
 	string time = buffer;
 
 	return time;
 }
 
-//функция, которая принимает все отправленные байты
 int receiveAll(int receivedSocket, Data &data)
 {
-	//Сначала инициализируем бфер на 1024 байта
-	//Это буфер, в который мы будем передавать размер передаваемого пакета
-	//то есть по омему представлению мы сначала говорим сколько байт мы будем передавать
-	//Для этого и нужен первый receive
-	char buf[1024];
+	char buf[BUF_LEN];
 
-	//В received записывается, сколько байт он принял, сами же байты
-	//идут в буфер
-	int received = recv(receivedSocket, buf, sizeof(char) * 1024, 0);
+	int received = recv(receivedSocket, buf, sizeof(char) * BUF_LEN, 0);
 
 	if (received < 0) return 0;
 
-	//Так как соединение не особо стабильное, нужно удостовериться
-	//Что все байты переданы
-	while (received != sizeof(char) * 1024)
+	while (received != sizeof(char) * BUF_LEN)
 	{
-		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * 1024 - received, 0);
+		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * BUF_LEN - received, 0);
 
-		//Обрабатываем ошибку, когда соединение было прервано
 		if (lastReceived < 0) return 0;
 
 		received += lastReceived;
 	}
 
-	//Из полученных данных, узнаем какой у нас размер данных
 	data.len = atoi(buf) + 1;
 
-	//Получаем первую пачку данных
 	received = recv(receivedSocket, data.setDataBuff(), sizeof(char)*data.len, 0);
 
 	if (received < 0) return 0;
 
-	//Получаем все остальное, если осталось
 	while (received != data.len * sizeof(char))
 	{
-		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * 1024 - received, 0);
+		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * BUF_LEN - received, 0);
 
-		//Обрабатываем ошибку, когда соединение было прервано
 		if (lastReceived < 0) return 0;
 
 		received += recv(receivedSocket, data.bufPointer + received, sizeof(char)*data.len - received, 0);
 	}
 
-	//Возвращаем данные в виде набора байтов
 	return 1;
 }
 
-int sendall(int receivedSocket, const char *buf, int len, int flags)
+int sendall(int receivedSocket, const char *buf, int len)
 {
 	int total = 0;
 	int n;
 
 	while (total < len)
 	{
-		n = send(receivedSocket, buf + total, len - total, flags);
+		n = send(receivedSocket, buf + total, len - total, 0);
 		if (n == -1) { break; }
 		total += n;
 	}
@@ -107,7 +92,6 @@ int sendIdenty(int receivedSocket, const char id)
 
 int sendFile(int receivedSocket, Data eData)
 {
-    //Здесь вводится путь к файлу
     string filePath = eData.bufPointer;
 	string pathFileName;
     ifstream file;
@@ -123,7 +107,6 @@ int sendFile(int receivedSocket, Data eData)
 
     send(receivedSocket, "goodPath", 9, 0);
 
-    // отсекаем имя файла
     #ifdef _WIN32
     size_t slashPos = filePath.rfind('\\');
     #else
@@ -132,86 +115,56 @@ int sendFile(int receivedSocket, Data eData)
 
     slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-    //Создаем буффер для имени файла, размер которого равен размеру строки в байтах
-	char* fileName = new char[pathFileName.size()*sizeof(char) + 1];
-
-	//Чтобы избавится от константности не просто приравнием, а копируем строку
-	strcpy(fileName, pathFileName.c_str());
-
-	//Создаем буфер, в котором будет храниться размер передаваемых данных
-	char* fileNameSize = new char[1024];
-
-	//Переводим размер данных в строковое представление
-	itoa(pathFileName.size()*sizeof(char), fileNameSize, 10);
-
-	//Посылаем информацию о размере данных об имени файла
-	if (sendall(receivedSocket, fileNameSize, 1024, 0) < 0)
+	if (sendall(receivedSocket, to_string(pathFileName.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
     {
         cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-        delete fileName;
-        delete fileNameSize;
         return 0;
     }
 
-	//Посылаем само имя
-	if (sendall(receivedSocket, fileName, (pathFileName.size() + 1) * sizeof(char), 0) < 0)
+	if (sendall(receivedSocket, pathFileName.c_str(), (pathFileName.size() + 1) * sizeof(char)) < 0)
     {
         cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-        delete fileName;
-        delete fileNameSize;
         return 0;
     }
 
-	delete fileName;
-	delete fileNameSize;
-
-    //Получаем информацию о размере файла
     file.seekg(0, std::ios_base::end);
     std::ifstream::pos_type endPos = file.tellg();
     file.seekg(0, std::ios_base::beg);
     int fileSize = static_cast<int>(endPos - file.tellg());
 
-	char* dataBuf = new char[fileSize*sizeof(char) + 1];
-
-	file.read(dataBuf, fileSize*sizeof(char));
-
-    if (file)
-        cout << getStrTime() << "All characters read successfully." << endl;
-    else
-        cout << getStrTime() << "Error: only " << file.gcount() << " could be read" << endl;
-
-	//Создаем буфер, в котором будет храниться размер передаваемых данных
-	char* datasize = new char[1024];
-
-	//Переводим размер данных в строковое представление
-	itoa (fileSize*sizeof(char), datasize, 10);
-
-    stringstream ss;
-    ss << fileSize*sizeof(char);
-    string myString = ss.str();
-    strcpy(datasize, myString.c_str());
-
-	//Посылаем информацию о размере файла
-	if (sendall(receivedSocket, datasize, 1024, 0) < 0)
+    try
     {
-        cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-        delete dataBuf;
-        delete datasize;
-        return 0;
-    }
+        char* dataBuf = new char[fileSize*sizeof(char) + 1];
 
-	//Посылаем сам файл
-	if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1, 0) < 0)
+        file.read(dataBuf, fileSize*sizeof(char));
+
+        if (file)
+            cout << getStrTime() << "All characters read successfully." << endl;
+        else
+            cout << getStrTime() << "Error: only " << file.gcount() << " could be read" << endl;
+
+        if (sendall(receivedSocket, to_string(fileSize*sizeof(char)).c_str(), BUF_LEN) < 0)
+        {
+            cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
+            delete dataBuf;
+            return 0;
+        }
+
+        if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1) < 0)
+        {
+            cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
+            delete dataBuf;
+            return 0;
+        }
+
+        file.close();
+        delete dataBuf;
+    }
+    catch(bad_alloc& ba)
     {
-        cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-        delete dataBuf;
-        delete datasize;
-        return 0;
+        cerr << "Out of memory." << ba.what() << endl;
+        return -1;
     }
-
-    file.close();
-	delete dataBuf;
-	delete datasize;
 
 	return 1;
 }

@@ -19,3 +19,5 @@
 #include <cstdlib>
 #include <iostream>
 #include <cstddef>
+#include <vector>
+#include <new>

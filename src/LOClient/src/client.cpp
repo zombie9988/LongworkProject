@@ -60,8 +60,8 @@ int sendIdenty(int receivedSocket, const char id)
 
 int runApplication(int receivedSocket)
 {
-	//Здесь вводится команда для выполения
 	string cmd;
+
 	cout << "Enter command:" << endl;
 
 	while (cmd == "")
@@ -69,42 +69,23 @@ int runApplication(int receivedSocket)
 		getline(cin, cmd);
 	}
 
-	//Создаем буффер для команды, размер которого равен размеру строки в байтах
-	char* command = new char[cmd.size()*sizeof(char) + 1];
-	//Чтобы избавится от константности не просто приравнием, а копируем строку
-	strcpy(command, cmd.c_str());
-	//Создаем буфер, в котором будет храниться размер передаваемых данных
-	char* datasize = new char[1024];
-	//Переводим размер данных в строковое представление
-	itoa(cmd.size()*sizeof(char), datasize, 10);
-
-	//Посылаем информацию о размере файла
-	if (sendall(receivedSocket, datasize, 1024, 0) < 0)
+	if (sendall(receivedSocket, to_string(cmd.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete command;
-        delete datasize;
         return -1;
     }
 
-	//Посылаем сам файл
-	if (sendall(receivedSocket, command, (cmd.size() + 1) * sizeof(char), 0) < 0)
+	if (sendall(receivedSocket, cmd.c_str(), (cmd.size() + 1) * sizeof(char)) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete command;
-        delete datasize;
         return -1;
     }
-
-	delete command;
-	delete datasize;
 
 	return 1;
 }
 
 int sendFile(int receivedSocket)
 {
-    //Здесь вводится путь к файлу
 	string filePath;
 	string pathFileName;
     ifstream file;
@@ -122,91 +103,65 @@ int sendFile(int receivedSocket)
     }
     while (!file.is_open());
 
-    // отсекаем имя файла
     size_t slashPos = filePath.rfind('\\');
 
     slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-    //Создаем буффер для имени файла, размер которого равен размеру строки в байтах
-	char* fileName = new char[pathFileName.size()*sizeof(char) + 1];
-
-	//Чтобы избавится от константности не просто приравнием, а копируем строку
-	strcpy(fileName, pathFileName.c_str());
-
-	//Создаем буфер, в котором будет храниться размер передаваемых данных
-	char* fileNameSize = new char[1024];
-
-	//Переводим размер данных в строковое представление
-	itoa(pathFileName.size()*sizeof(char), fileNameSize, 10);
-
-	//Посылаем информацию о размере данных об имени файла
-	if (sendall(receivedSocket, fileNameSize, 1024, 0) < 0)
+	if (sendall(receivedSocket, to_string(pathFileName.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete fileName;
-        delete fileNameSize;
         return -1;
     }
 
-	//Посылаем само имя
-	if (sendall(receivedSocket, fileName, (pathFileName.size() + 1) * sizeof(char), 0) < 0)
+	if (sendall(receivedSocket, pathFileName.c_str(), (pathFileName.size() + 1) * sizeof(char)) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete fileName;
-        delete fileNameSize;
         return -1;
     }
 
-	delete fileName;
-	delete fileNameSize;
-
-    //Получаем информацию о размере файла
     file.seekg(0, std::ios_base::end);
     std::ifstream::pos_type endPos = file.tellg();
     file.seekg(0, std::ios_base::beg);
+
     int fileSize = static_cast<int>(endPos - file.tellg());
 
-	char* dataBuf = new char(fileSize*sizeof(char) + 1);
-
-	file.read(dataBuf, fileSize*sizeof(char));
-
-    if (file)
-      std::cout << "All characters read successfully.";
-    else
-      std::cout << "Error: only " << file.gcount() << " could be read";
-
-	//Создаем буфер, в котором будет храниться размер передаваемых данных
-	char* datasize = new char[1024];
-
-	//Переводим размер данных в строковое представление
-	itoa (fileSize*sizeof(char), datasize, 10);
-
-    stringstream ss;
-    ss << fileSize*sizeof(char);
-    string myString = ss.str();
-    strcpy(datasize, myString.c_str());
-
-	//Посылаем информацию о размере файла
-	if (sendall(receivedSocket, datasize, 1024, 0) < 0)
+    try
     {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
+        char* dataBuf = new char[fileSize*sizeof(char) + 1];
+
+        file.read(dataBuf, fileSize*sizeof(char));
+
+        if (file)
+            std::cout << "All characters read successfully.";
+        else
+            std::cout << "Error: only " << file.gcount() << " could be read";
+
+        stringstream ss;
+        ss << fileSize*sizeof(char);
+        string myString = ss.str();
+
+        if (sendall(receivedSocket, to_string(fileSize*sizeof(char)).c_str(), BUF_LEN) < 0)
+        {
+            cout << "Connection with server was lost:" << strerror(errno) << endl;
+            delete dataBuf;
+            return -1;
+        }
+
+        if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1) < 0)
+        {
+            cout << "Connection with server was lost:" << strerror(errno) << endl;
+            delete dataBuf;
+            return -1;
+        }
+
+        file.close();
         delete dataBuf;
-        delete datasize;
+	}
+    catch(bad_alloc& ba)
+    {
+        cerr << "Out of memory. " << ba.what() << endl;
         return -1;
     }
-
-	//Посылаем сам файл
-	if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1, 0) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete dataBuf;
-        delete datasize;
-        return -1;
-    }
-
-    file.close();
-	delete dataBuf;
-	delete datasize;
 
 	return 1;
 }
@@ -220,77 +175,67 @@ int getFile(int receivedSocket)
 
     getline(cin, filePath);
 
-    char* path     = new char[filePath.size()*sizeof(char) + 1];
-    char* pathSize = new char[1024];
-
-    strcpy(path, filePath.c_str());
-    itoa(filePath.size()*sizeof(char), pathSize, 10);
-
-    if (sendall(receivedSocket, pathSize, 1024, 0) < 0)
+    if (sendall(receivedSocket, to_string(filePath.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete path;
-        delete pathSize;
         return -1;
     }
 
-    if (sendall(receivedSocket, path, (filePath.size() + 1) * sizeof(char), 0) < 0)
+    if (sendall(receivedSocket, filePath.c_str(), (filePath.size() + 1) * sizeof(char)) < 0)
     {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete path;
-        delete pathSize;
+        cout << "Connection with server was lost: " << strerror(errno) << endl;
         return -1;
     }
 
-    char* filePathResult = new char[9];
-    recv(receivedSocket, filePathResult, 9, 0);
-    string pathRes = filePathResult;
-
-    if(pathRes == "badPath ")
+    try
     {
-        cout << "Bad file path!" << endl;
-        system("pause");
-        delete path;
-        delete pathSize;
-        delete filePathResult;
-        return 1;
-    }
+        char* filePathResult = new char[9];
+        recv(receivedSocket, filePathResult, 9, 0);
+        string pathRes = filePathResult;
 
-    if (!receiveAll(receivedSocket, eData))
+        if(pathRes == "badPath ")
+        {
+            cout << "Bad file path!" << endl;
+            system("pause");
+            delete filePathResult;
+            return 1;
+        }
+
+        if (!receiveAll(receivedSocket, eData))
+        {
+            cout << "Connection with server was lost!" << endl;
+        }
+
+        cout << "Getting file by name: " << eData.bufPointer << endl;
+
+        if (!receiveAll(receivedSocket, data))
+        {
+            cout << "Connection with server was lost!" << endl;
+        }
+
+        char buf[5];
+
+        int received = recv(receivedSocket, buf, sizeof(char) * 5, 0);
+
+        string result = buf;
+
+        if (result == "good")
+        {
+            writeFile(data, eData.bufPointer);
+            cout << "File: " << eData.bufPointer << " was written!" << endl;
+            system("pause");
+        }
+        else
+        {
+            cout << "File: " << eData.bufPointer << " wasn't written" << endl;
+            return 0;
+        }
+    }
+    catch(bad_alloc& ba)
     {
-        cout << "Connection with server was lost!" << endl;
+        cerr << "Out of memory. " << ba.what() << endl;
+        return -1;
     }
-
-    cout << "Getting file by name: " << eData.bufPointer << endl;
-
-    //Здесь принимаем сам файл
-    if (!receiveAll(receivedSocket, data))
-    {
-        cout << "Connection with server was lost!" << endl;
-    }
-
-    char buf[5];
-
-	int received = recv(receivedSocket, buf, sizeof(char) * 5, 0);
-
-    string result = buf;
-
-    if (result == "good")
-    {
-        writeFile(data, eData.bufPointer);
-        cout << "File: " << eData.bufPointer << " was written!" << endl;
-        system("pause");
-    }
-    else
-    {
-        cout << "File: " << eData.bufPointer << " wasn't written" << endl;
-        delete path;
-        delete pathSize;
-        return 0;
-    }
-
-	delete path;
-	delete pathSize;
 
 	return 1;
 }
@@ -303,47 +248,40 @@ int deleteFile(int receivedSocket)
 
     getline(cin, filePath);
 
-    char* path     = new char[filePath.size()*sizeof(char) + 1];
-    char* pathSize = new char[1024];
-
-    strcpy(path, filePath.c_str());
-    itoa(filePath.size()*sizeof(char), pathSize, 10);
-
-    if (sendall(receivedSocket, pathSize, 1024, 0) < 0)
+    if (sendall(receivedSocket, to_string(filePath.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete path;
-        delete pathSize;
         return -1;
     }
 
-    if (sendall(receivedSocket, path, (filePath.size() + 1) * sizeof(char), 0) < 0)
+    if (sendall(receivedSocket, filePath.c_str(), (filePath.size() + 1) * sizeof(char)) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
-        delete path;
-        delete pathSize;
         return -1;
     }
 
-    char* filePathResult = new char[9];
-    recv(receivedSocket, filePathResult, 9, 0);
-    string pathRes = filePathResult;
-
-    if(pathRes == "badPath ")
+    try
     {
-        cout << "Bad file path!" << endl;
+        char* filePathResult = new char[9];
+        recv(receivedSocket, filePathResult, 9, 0);
+        string pathRes = filePathResult;
+
+        if(pathRes == "badPath ")
+        {
+            cout << "Bad file path!" << endl;
+            system("pause");
+            delete filePathResult;
+            return 0;
+        }
+
+        cout << "File was deleted!" << endl;
         system("pause");
-        delete path;
-        delete pathSize;
-        delete filePathResult;
-        return 0;
     }
-
-    cout << "File was deleted!" << endl;
-    system("pause");
-
-	delete path;
-	delete pathSize;
+    catch(bad_alloc& ba)
+    {
+       cerr << "Out of memory. " << ba.what() << endl;
+       return -1;
+    }
 
 	return 1;
 }
@@ -362,12 +300,8 @@ int processRequest(int receivedSocket)
 		int sent;
 		Data data;
 
-		(cin >> option).get(); // считаываем \n после getline
+		(cin >> option).get();
 
-		//В зависимости от того, какое число выбрал пользователь
-		//Мы пошлем разный идетификторы серверу через функцию
-		//setidentity()
-		//После чего вызовется фукнция, которая непосредственно передает данные
 		switch (option)
 		{
 		case 1:

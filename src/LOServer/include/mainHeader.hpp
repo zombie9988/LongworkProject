@@ -18,4 +18,7 @@
 #   error "Unknown compiler"
 #endif
 
+#define BUF_LEN 1024
+#define PORT 1337
+
 using namespace std;
