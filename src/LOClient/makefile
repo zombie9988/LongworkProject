@@ -1,12 +1,12 @@
 all: main.cpp
 
 main.cpp: libs
-	g++ main.cpp -Iinclude -Llibs -lAES -lclient -lutils -lws2_32 -o Client
+	g++ main.cpp -Iinclude -Llibs -lclient -lutils -lws2_32 -o Client
 	rm -rf client.o utils.o
 client.o:
-	g++ src/client.cpp -Iinclude -Llibs -lAES -lws2_32 -c
+	g++ src/client.cpp -Iinclude -Llibs -lws2_32 -c
 utils.o:
-	g++ src/utils.cpp -Iinclude -Llibs -lAES -lws2_32 -c
+	g++ src/utils.cpp -Iinclude -Llibs -lws2_32 -c
 
 libs: client.o utils.o
 	ar rvs libs/libutils.a utils.o

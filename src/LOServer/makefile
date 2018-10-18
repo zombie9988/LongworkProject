@@ -1,12 +1,12 @@
 all: main.cpp
 
 main.cpp: libs
-	g++ main.cpp -Iinclude -Llibs -lAES -lserver -lutils -lws2_32 -o Server
+	g++ main.cpp -Iinclude -Llibs -lserver -lutils -lws2_32 -o Server
 	rm -rf server.o utils.o
 server.o:
-	g++ src/server.cpp -Iinclude -Llibs -lAES -lws2_32 -c
+	g++ src/server.cpp -Iinclude -Llibs -lws2_32 -c
 utils.o:
-	g++ src/utils.cpp -Iinclude -Llibs -lAES -lws2_32 -c
+	g++ src/utils.cpp -Iinclude -Llibs -lws2_32 -c
 
 libs: server.o utils.o
 	ar rvs libs/libutils.a utils.o
