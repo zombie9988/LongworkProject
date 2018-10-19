@@ -65,10 +65,12 @@ int startListenSocket(int socketServer)
 		}
 
 		bool doListen = true;
-		hostent* host = NULL;
+		string clientName;
 
 		while (doListen)
 		{
+			hostent* host = NULL;
+
             if ((socketClient = accept(socketServer, (sockaddr*)&clientAddr, &clientAddrSize)) < 0)
             {
                 cout << getStrTime() << "Failed to accept socket" << strerror(errno) << endl;
@@ -76,16 +78,23 @@ int startListenSocket(int socketServer)
                 return -1;
             }
 
+			char* buffer = new char[256];
+			inet_ntop(AF_INET, &clientAddr.sin_addr.s_addr, buffer, 256);
+			string clientIp = buffer;
+			delete buffer;
+			doListen = false;
 			if (socketClient >= 0)
 			{
-				host = gethostbyaddr((char*)&clientAddr.sin_addr.s_addr, 4, AF_INET);
+				host = gethostbyaddr(clientIp.c_str(), 4, AF_INET);
 				if(host == NULL)
 				{
-                    cout << getStrTime() << "Can't get host - " << h_errno << endl;
-                    CLOSE(socketServer);
-                    return -1;
+					clientName = clientIp;
+					cout << getStrTime() << "Can't get host info - " << clientIp << " " << strerror(h_errno) << endl;
+					doListen = false;
+                    continue;
                 }
 				cout << getStrTime() << "User: " << host->h_name << " connected successfully!" << endl;
+				clientName = host->h_name;
 				doListen = false;
 			}
 		}
@@ -107,14 +116,14 @@ int startListenSocket(int socketServer)
 
                 if (receiveArg == -1)
                 {
-                    cout << getStrTime() << "User: " << host->h_name << " disconnected! Because of: " << strerror(errno) << endl;
+                    cout << getStrTime() << "User: " << clientName << " disconnected! Because of: " << strerror(errno) << endl;
                     break;
                 }
 
                 jobIdentifier = buf[0];
                 buf[0] = '0';
 
-                delete buf;
+                delete buf;	
 		    }
 		    catch(bad_alloc& ba)
 		    {
@@ -134,12 +143,12 @@ int startListenSocket(int socketServer)
 
 				if (!receiveAll(socketClient, data))
 				{
-					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-				command = data.bufPointer;
+				command = data.getCharString();
 				runFile(command);
 
 				jobIdentifier = '0';
@@ -149,21 +158,21 @@ int startListenSocket(int socketServer)
 
                 if (!receiveAll(socketClient, eData))
 				{
-					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                cout << getStrTime() << "Getting file by name: " << eData.bufPointer << endl;
+                cout << getStrTime() << "Getting file by name: " << eData.getCharString() << endl;
 
 				if (!receiveAll(socketClient, data))
 				{
-					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                writeFile(data, eData.bufPointer);
+                writeFile(data, eData.getCharString());
 				jobIdentifier = '0';
 				break;
 			case '3':
@@ -172,7 +181,7 @@ int startListenSocket(int socketServer)
 
 				if (!receiveAll(socketClient, eData))
 				{
-					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
@@ -186,13 +195,13 @@ int startListenSocket(int socketServer)
                 else if(result)
                 {
                     cout << getStrTime() << "All is good!" << endl;
-                    sendall(socketClient, "good", 5);
+                    sendAll(socketClient, "good");
                 }
                 else
                 {
-                    cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+                    cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
                     receiveFlag = false;
-                    sendall(socketClient, "bad ", 5);
+                    sendAll(socketClient, "bad ");
                     break;
                 }
 
@@ -204,22 +213,22 @@ int startListenSocket(int socketServer)
 
 				if (!receiveAll(socketClient, eData))
 				{
-					cout << getStrTime() << "User: " << host->h_name << " was Disconnected" << endl;
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
                 string stringPath;
 
-                for (int i = 0; i < eData.len; ++i)
+                for (int i = 0; i < eData.getDataSize(); ++i)
                 {
-                    stringPath.push_back(eData.bufPointer[i]);
+                    stringPath.push_back(eData.getCharString()[i]);
 
                     #ifdef _WIN32
                     if (eData.bufPointer[i] == '\\')
                         stringPath.push_back('\\');
                     #else
-                    if (eData.bufPointer[i] == '/')
+                    if (eData.getCharString()[i] == '/')
                         stringPath.push_back('/');
                     #endif
                 }
@@ -236,7 +245,7 @@ int startListenSocket(int socketServer)
 					break;
 				}
 
-				cout << getStrTime() << "Deleting a file: " << eData.bufPointer << endl;
+				cout << getStrTime() << "Deleting a file: " << eData.getCharString() << endl;
 				send(socketClient, "good ", 9, 0);
 				file.close();
 				remove(stringPath.c_str());
@@ -246,7 +255,7 @@ int startListenSocket(int socketServer)
 
                 if (jobIdentifier == '5')
                 {
-                    cout << getStrTime() << "User: " << host->h_name << " disconnected!" << endl;
+                    cout << getStrTime() << "User: " << clientName << " disconnected!" << endl;
                     break;
                 }
 			}

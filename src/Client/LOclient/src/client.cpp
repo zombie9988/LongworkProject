@@ -1,7 +1,7 @@
-#include "client.hpp"
-#include "utils.hpp"
+#include "../include/client.hpp"
+#include "../include/utils.hpp"
 
-int connectToServer(string ip, string port)
+int connectToServer(string ip, short port)
 {
 	WSADATA wsaData;
 	WORD wVersionRequested = MAKEWORD(2, 2);
@@ -24,7 +24,7 @@ int connectToServer(string ip, string port)
 
 	struct sockaddr_in addr;
 
-	addr.sin_port   = htons(1337);
+	addr.sin_port   = htons(port);
 	addr.sin_family = AF_INET;
 
 	if (inet_addr(ip.c_str()) != INADDR_NONE)
@@ -69,13 +69,7 @@ int runApplication(int receivedSocket)
 		getline(cin, cmd);
 	}
 
-	if (sendall(receivedSocket, to_string(cmd.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
-
-	if (sendall(receivedSocket, cmd.c_str(), (cmd.size() + 1) * sizeof(char)) < 0)
+	if (sendAll(receivedSocket, cmd.c_str()) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
         return -1;
@@ -107,13 +101,7 @@ int sendFile(int receivedSocket)
 
     slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-	if (sendall(receivedSocket, to_string(pathFileName.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
-
-	if (sendall(receivedSocket, pathFileName.c_str(), (pathFileName.size() + 1) * sizeof(char)) < 0)
+	if (sendAll(receivedSocket, pathFileName.c_str()) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
         return -1;
@@ -123,45 +111,25 @@ int sendFile(int receivedSocket)
     std::ifstream::pos_type endPos = file.tellg();
     file.seekg(0, std::ios_base::beg);
 
-    int fileSize = static_cast<int>(endPos - file.tellg());
+    int fileSize = (int)(endPos - file.tellg());
 
-    try
+	Data fileData;
+
+	fileData.createBuffer(fileSize);
+    file.read(fileData.getBuffer(), fileSize);
+
+    if (file)
+        std::cout << "All characters read successfully.";
+    else
+        std::cout << "Error: only " << file.gcount() << " could be read";
+
+    if (sendAll(receivedSocket, fileData.getBuffer()) < 0)
     {
-        char* dataBuf = new char[fileSize*sizeof(char) + 1];
-
-        file.read(dataBuf, fileSize*sizeof(char));
-
-        if (file)
-            std::cout << "All characters read successfully.";
-        else
-            std::cout << "Error: only " << file.gcount() << " could be read";
-
-        stringstream ss;
-        ss << fileSize*sizeof(char);
-        string myString = ss.str();
-
-        if (sendall(receivedSocket, to_string(fileSize*sizeof(char)).c_str(), BUF_LEN) < 0)
-        {
-            cout << "Connection with server was lost:" << strerror(errno) << endl;
-            delete dataBuf;
-            return -1;
-        }
-
-        if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1) < 0)
-        {
-            cout << "Connection with server was lost:" << strerror(errno) << endl;
-            delete dataBuf;
-            return -1;
-        }
-
-        file.close();
-        delete dataBuf;
-	}
-    catch(bad_alloc& ba)
-    {
-        cerr << "Out of memory. " << ba.what() << endl;
+        cout << "Connection with server was lost:" << strerror(errno) << endl;
         return -1;
     }
+
+    file.close();
 
 	return 1;
 }
@@ -175,67 +143,62 @@ int getFile(int receivedSocket)
 
     getline(cin, filePath);
 
-    if (sendall(receivedSocket, to_string(filePath.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
-
-    if (sendall(receivedSocket, filePath.c_str(), (filePath.size() + 1) * sizeof(char)) < 0)
+    if (sendAll(receivedSocket, filePath.c_str()) < 0)
     {
         cout << "Connection with server was lost: " << strerror(errno) << endl;
         return -1;
     }
 
-    try
-    {
-        char* filePathResult = new char[9];
-        recv(receivedSocket, filePathResult, 9, 0);
-        string pathRes = filePathResult;
+	Data resultData;
+	resultData.createBuffer(RESULT_LEN);
 
-        if(pathRes == "badPath ")
-        {
-            cout << "Bad file path!" << endl;
-            system("pause");
-            delete filePathResult;
-            return 1;
-        }
+	if (receiveAll(receivedSocket, resultData) < 0)
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		return -1;
+	}
 
-        if (!receiveAll(receivedSocket, eData))
-        {
-            cout << "Connection with server was lost!" << endl;
-        }
+	if (resultData.getCharString() == "badPath ")
+	{
+		cout << "Bad file path!" << endl;
+		system("pause");
+		return 1;
+	}
 
-        cout << "Getting file by name: " << eData.bufPointer << endl;
+	if (receiveAll(receivedSocket, eData) < 0)
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		return -1;
+	}
 
-        if (!receiveAll(receivedSocket, data))
-        {
-            cout << "Connection with server was lost!" << endl;
-        }
+	cout << "Getting file by name: " << eData.getCharString() << endl;
 
-        char buf[5];
+	if (receiveAll(receivedSocket, data) < 0)
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		return -1;
+	}
 
-        int received = recv(receivedSocket, buf, sizeof(char) * 5, 0);
+	Data result;
 
-        string result = buf;
+	if (receiveAll(receivedSocket, result) < 0)
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		return -1;
+	}
 
-        if (result == "good")
-        {
-            writeFile(data, eData.bufPointer);
-            cout << "File: " << eData.bufPointer << " was written!" << endl;
-            system("pause");
-        }
-        else
-        {
-            cout << "File: " << eData.bufPointer << " wasn't written" << endl;
-            return 0;
-        }
-    }
-    catch(bad_alloc& ba)
-    {
-        cerr << "Out of memory. " << ba.what() << endl;
-        return -1;
-    }
+	if (result.getCharString() == "good")
+	{
+		writeFile(data, eData.getCharString());
+		cout << "File: " << eData.getCharString() << " was written!" << endl;
+		system("pause");
+	}
+	else
+	{
+		cout << "File: " << eData.getCharString() << " wasn't written" << endl;
+		system("pause");
+		return 0;
+	}
 
 	return 1;
 }
@@ -245,44 +208,28 @@ int deleteFile(int receivedSocket)
     string filePath;
 
     cout << "Enter path to file: " << endl;
-
     getline(cin, filePath);
 
-    if (sendall(receivedSocket, to_string(filePath.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
+    if (sendAll(receivedSocket, filePath) < 0)
     {
         cout << "Connection with server was lost:" << strerror(errno) << endl;
         return -1;
     }
 
-    if (sendall(receivedSocket, filePath.c_str(), (filePath.size() + 1) * sizeof(char)) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
+	Data result;
+	receiveAll(receivedSocket, result);
+	string pathRes = result.getCharString();
 
-    try
-    {
-        char* filePathResult = new char[9];
-        recv(receivedSocket, filePathResult, 9, 0);
-        string pathRes = filePathResult;
+	if (pathRes == "badPath ")
+	{
+		cout << "Bad file path!" << endl;
+		system("pause");
+		return 0;
+	}
 
-        if(pathRes == "badPath ")
-        {
-            cout << "Bad file path!" << endl;
-            system("pause");
-            delete filePathResult;
-            return 0;
-        }
-
-        cout << "File was deleted!" << endl;
-        system("pause");
-    }
-    catch(bad_alloc& ba)
-    {
-       cerr << "Out of memory. " << ba.what() << endl;
-       return -1;
-    }
-
+	cout << "File was deleted!" << endl;
+	system("pause");
+  
 	return 1;
 }
 
@@ -298,7 +245,6 @@ int processRequest(int receivedSocket)
 
 		int option = 0;
 		int sent;
-		Data data;
 
 		(cin >> option).get();
 

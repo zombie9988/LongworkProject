@@ -7,11 +7,11 @@ int runFile(string cmd)
     return system(cmd.c_str());
 }
 
-int writeFile(Data &data, char* fileName)
+int writeFile(Data &data, const char* fileName)
 {
     ofstream outFile(fileName, ios::binary);
 
-    outFile.write(data.bufPointer, data.len);
+    outFile.write(data.getCharString(), data.getDataSize());
 
     cout << getStrTime() << fileName << " Was written!" << endl;
 
@@ -34,54 +34,91 @@ string getStrTime()
 	return time;
 }
 
-int receiveAll(int receivedSocket, Data &data)
+int receivePart(int receivedSocket, Data& data, int len)
 {
-	char buf[BUF_LEN];
+	int received = 0;
 
-	int received = recv(receivedSocket, buf, sizeof(char) * BUF_LEN, 0);
+	data.createBuffer(len);
 
-	if (received < 0) return 0;
-
-	while (received != sizeof(char) * BUF_LEN)
+	while (received != len)
 	{
-		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * BUF_LEN - received, 0);
+		int lastReceived = recv(receivedSocket, data.getBuffer() + received, len - received, 0);
 
-		if (lastReceived < 0) return 0;
+		if (lastReceived < 0)
+		{
+			return -1;
+		}
 
 		received += lastReceived;
 	}
 
-	data.len = atoi(buf) + 1;
+	data = data.getBuffer();
 
-	received = recv(receivedSocket, data.setDataBuff(), sizeof(char)*data.len, 0);
+	return received;
+}
 
-	if (received < 0) return 0;
+int receiveAll(int receivedSocket, Data& data)
+{
+	//Принимаем данные в data
+	Data fileSize;
 
-	while (received != data.len * sizeof(char))
+	//Принимаем размер данных
+	if (receivePart(receivedSocket, fileSize, BUF_LEN) < 0)
 	{
-		int lastReceived = recv(receivedSocket, buf + received, sizeof(char) * BUF_LEN - received, 0);
+		throw runtime_error("Could't receive data, check connection");
+		return -1;
+	}
 
-		if (lastReceived < 0) return 0;
-
-		received += recv(receivedSocket, data.bufPointer + received, sizeof(char)*data.len - received, 0);
+	//Принимаем сами данные
+	if (receivePart(receivedSocket, data, atoi(fileSize.getCharString())) < 0)
+	{
+		throw runtime_error("Could't receive data, check connection");
+		return -1;
 	}
 
 	return 1;
 }
 
-int sendall(int receivedSocket, const char *buf, int len)
+int sendPart(int receivedSocket, string buf, int len)
 {
 	int total = 0;
-	int n;
 
 	while (total < len)
 	{
-		n = send(receivedSocket, buf + total, len - total, 0);
-		if (n == -1) { break; }
+		int n = send(receivedSocket, buf.c_str() + total, len - total, 0);
+
+		if (n == -1)
+		{
+			return -1;
+		}
+
 		total += n;
 	}
 
-	return (n == -1 ? -1 : total);
+	return total;
+}
+
+int sendAll(int receiveSocket, Data data)
+{
+	//Сначала нам необходимо отправить размер отправляемых данных
+
+	Data dataSize(data.getDataSize());
+
+	//Посылаем размер данных
+	if (sendPart(receiveSocket, dataSize.getCharString(), BUF_LEN) < 0)
+	{
+		throw runtime_error("Could't send data, check connection");
+		return -1;
+	}
+
+	//Посылаем сами данные
+	if (sendPart(receiveSocket, data.getCharString(), data.getDataSize()) < 0)
+	{
+		throw runtime_error("Could't send data, check connection");
+		return -1;
+	}
+
+	return 1;
 }
 
 int sendIdenty(int receivedSocket, const char id)
@@ -92,7 +129,7 @@ int sendIdenty(int receivedSocket, const char id)
 
 int sendFile(int receivedSocket, Data eData)
 {
-    string filePath = eData.bufPointer;
+    string filePath = eData.getCharString();
 	string pathFileName;
     ifstream file;
 
@@ -115,13 +152,7 @@ int sendFile(int receivedSocket, Data eData)
 
     slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-	if (sendall(receivedSocket, to_string(pathFileName.size()*sizeof(char)).c_str(), BUF_LEN) < 0)
-    {
-        cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-        return 0;
-    }
-
-	if (sendall(receivedSocket, pathFileName.c_str(), (pathFileName.size() + 1) * sizeof(char)) < 0)
+	if (sendAll(receivedSocket, pathFileName.c_str()) < 0)
     {
         cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
         return 0;
@@ -134,23 +165,16 @@ int sendFile(int receivedSocket, Data eData)
 
     try
     {
-        char* dataBuf = new char[fileSize*sizeof(char) + 1];
+        char* dataBuf = new char[fileSize];
 
-        file.read(dataBuf, fileSize*sizeof(char));
+        file.read(dataBuf, fileSize);
 
         if (file)
             cout << getStrTime() << "All characters read successfully." << endl;
         else
             cout << getStrTime() << "Error: only " << file.gcount() << " could be read" << endl;
 
-        if (sendall(receivedSocket, to_string(fileSize*sizeof(char)).c_str(), BUF_LEN) < 0)
-        {
-            cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
-            delete dataBuf;
-            return 0;
-        }
-
-        if (sendall(receivedSocket, dataBuf, (fileSize * sizeof(char)) + 1) < 0)
+        if (sendAll(receivedSocket, dataBuf) < 0)
         {
             cout << getStrTime() << "Connection with server was lost:" << strerror(errno) << endl;
             delete dataBuf;

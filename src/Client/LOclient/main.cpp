@@ -1,12 +1,12 @@
-﻿#include "includes.hpp"
-#include "client.hpp"
+﻿#include "include/includes.hpp"
+#include "include/client.hpp"
 
 using namespace std;
 
 int main()
 {
 	string ip;
-	string port;
+	short port;
 
 	cout << "Enter server ip: ";
 	cin >> ip;
