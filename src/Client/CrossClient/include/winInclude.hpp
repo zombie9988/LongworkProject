@@ -6,8 +6,6 @@
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
-#define BUF_LEN 256
-#define RESULT_LEN 9
 
 #include <sstream>
 #include <errno.h>

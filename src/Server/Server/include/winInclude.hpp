@@ -22,3 +22,4 @@
 #include <cstdlib>
 #include <fstream>
 #include <new>
+#include <ws2tcpip.h>

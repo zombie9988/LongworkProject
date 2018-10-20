@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Data.hpp"
-#include "includes.hpp"
+#include "mainHeader.hpp"
 
 int processRequest(int receivedSocket);
 int connectToServer(string ip, short port);

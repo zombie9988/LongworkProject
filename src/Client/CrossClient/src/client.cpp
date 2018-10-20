@@ -2,7 +2,8 @@
 #include "../include/utils.hpp"
 
 int connectToServer(string ip, short port)
-{
+{	
+#ifdef _WIN32
 	WSADATA wsaData;
 	WORD wVersionRequested = MAKEWORD(2, 2);
 
@@ -12,16 +13,21 @@ int connectToServer(string ip, short port)
 		return -1;
 	}
 
-	SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
 
+#endif
+
+	int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+
+#ifdef _WIN32
 	if (clientSocket < 0)
 	{
 		cout << "Socket start error - " << WSAGetLastError() << endl;
 
-		WSACleanup();
+		
 		return -1;
 	}
 
+#endif
 	struct sockaddr_in addr;
 
 	addr.sin_port   = htons(port);
@@ -34,18 +40,16 @@ int connectToServer(string ip, short port)
 	else
 	{
 		cout << "Invalid address!" << endl;
-		WSACleanup();
 		return -1;
 	}
 
 	if (connect(clientSocket, (sockaddr*)&addr, sizeof(addr)))
 	{
-		cout << "Connect error - " <<  WSAGetLastError();
-		WSACleanup();
+		cout << "Connect error!" << endl;
 		return -1;
 	}
 
-	system("cls");
+	CLEAR
 	cout << "Connected!" << endl;
 
 	return clientSocket;
@@ -251,88 +255,86 @@ int processRequest(int receivedSocket)
 		switch (option)
 		{
 		case 1:
-			system("cls");
+			CLEAR
 			if ((sent = sendIdenty(receivedSocket, '1')) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
                 return -1;
             }
 
 			if ((runApplication(receivedSocket)) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
                 return -1;
             }
 
-			system("cls");
+			CLEAR
 			break;
 
 		case 2:
-			system("cls");
+			CLEAR
 			if ((sent = sendIdenty(receivedSocket, '2')) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
 			if ((sendFile(receivedSocket)) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
-			system("cls");
+			CLEAR
 			break;
 
 		case 3:
-			system("cls");
+			CLEAR
 			if ((sent = sendIdenty(receivedSocket, '3')) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
 			if (getFile(receivedSocket) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
-			system("cls");
+			CLEAR
 			break;
 
 		case 4:
-			system("cls");
+			CLEAR
 			if ((sent = sendIdenty(receivedSocket, '4')) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
 			if((deleteFile(receivedSocket)) < 0)
             {
                 cout << "Connection with server was lost: " << endl;
-                WSACleanup();
+                
                 return -1;
             }
 
-			system("cls");
+			CLEAR
 			break;
 		case 0:
-			system("cls");
+			CLEAR
 			sendIdenty(receivedSocket, '5');
-			system("cls");
+			CLEAR
 			return 0;
 
 		default:
-			system("cls");
+			CLEAR
 			cout << "Choose one of the point\n" << endl;
 			break;
 		}

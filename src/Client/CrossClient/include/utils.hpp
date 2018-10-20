@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Data.hpp"
-#include "includes.hpp"
+#include "mainHeader.hpp"
 
 int writeFile(Data &data, string fileName);
 int receiveAll(int receivedSocket, Data &data);

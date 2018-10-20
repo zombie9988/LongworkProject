@@ -57,7 +57,7 @@ int startListenSocket(int socketServer)
 		sockaddr_in clientAddr;
 		socklen_t clientAddrSize = sizeof(clientAddr);
 
-		if (listen(socketServer, 0x100))
+		if (listen(socketServer, 0x1))
 		{
 			cout << "Listen failed!" << strerror(errno) << endl;
 			CLOSE(socketServer);
@@ -78,10 +78,15 @@ int startListenSocket(int socketServer)
                 return -1;
             }
 
+			#ifdef __linux__
 			char* buffer = new char[256];
 			inet_ntop(AF_INET, &clientAddr.sin_addr.s_addr, buffer, 256);
 			string clientIp = buffer;
 			delete buffer;
+			#elif _WIN32
+			string clientIp = (char*)&clientAddr.sin_addr.s_addr;
+			#endif
+
 			doListen = false;
 			if (socketClient >= 0)
 			{
@@ -225,7 +230,7 @@ int startListenSocket(int socketServer)
                     stringPath.push_back(eData.getCharString()[i]);
 
                     #ifdef _WIN32
-                    if (eData.bufPointer[i] == '\\')
+                    if (eData.getCharString()[i] == '\\')
                         stringPath.push_back('\\');
                     #else
                     if (eData.getCharString()[i] == '/')
