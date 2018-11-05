@@ -22,3 +22,4 @@
 #include <codecvt>
 #include <cstdlib>
 #include <new>
+#include <stdexcept>

@@ -7,14 +7,15 @@ using namespace std;
 class Data
 {
 private:
-	 string _buffer;
-	 char* _c_buffer;
-	 int _c_buffer_len;
+	string _buffer;
+	char* _c_buffer;
+	int _c_buffer_len;
+
 public:
 	Data()
 	{
-		_c_buffer_len = 0;
 	}
+
 	template <typename T>
 	Data(T data)
 	{
@@ -30,14 +31,20 @@ public:
 
 	Data(const char* data)
 	{
-		_buffer = string(data);
-		_c_buffer_len = 0;
+		_c_buffer = createBuffer(BLOCK_SIZE);
+
+		memcpy(_c_buffer, data, BLOCK_SIZE);
+
+		_c_buffer_len = BLOCK_SIZE;
 	}
 
 	Data(char* data)
 	{
-		_buffer = string(data);
-		_c_buffer_len = 0;
+		_c_buffer = createBuffer(BLOCK_SIZE);
+
+		memcpy(_c_buffer, data, BLOCK_SIZE);
+
+		_c_buffer_len = BLOCK_SIZE;
 	}
 
 	Data(const Data& data)
@@ -47,8 +54,8 @@ public:
 
 		if (data._c_buffer_len != 0)
 		{
-			_c_buffer_len = data._c_buffer_len;
 			createBuffer(data._c_buffer_len);
+			_c_buffer_len = data._c_buffer_len;
 
 			for (int i = 0; i < data._c_buffer_len; i++)
 			{
@@ -64,8 +71,8 @@ public:
 
 		if (data._c_buffer_len != 0)
 		{
-			_c_buffer_len = data._c_buffer_len;
 			createBuffer(data._c_buffer_len);
+			_c_buffer_len = data._c_buffer_len;
 
 			for (int i = 0; i < data._c_buffer_len; i++)
 			{
@@ -95,11 +102,6 @@ public:
 		return *this;
 	}
 
-	void setData()
-	{
-
-	}
-
 	string getDataSize_str()
 	{
 		return to_string(_buffer.size());
@@ -107,12 +109,22 @@ public:
 
 	const char* getCharString()
 	{
+		if (_buffer.empty())
+		{
+			return _c_buffer;
+		}
+
 		return _buffer.c_str();
 	}
 
 	int getDataSize()
 	{
-		return _buffer.size();
+		if (_buffer.empty())
+		{
+			return BLOCK_SIZE;
+		}
+
+		return (int)_buffer.size();
 	}
 
 	string getString()
@@ -122,7 +134,7 @@ public:
 
 	char* createBuffer(int len)
 	{
-		if (_c_buffer != nullptr && _c_buffer_len != 0)
+		if (_c_buffer != nullptr && _c_buffer_len > 0)
 		{
 			delete _c_buffer;
 		}

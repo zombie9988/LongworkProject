@@ -11,3 +11,5 @@ int sendFile(int receivedSocket);
 int getFile(int receivedSocket);
 int deleteFile(int receivedSocket);
 int processRequest(int receivedSocket);
+
+using namespace std;

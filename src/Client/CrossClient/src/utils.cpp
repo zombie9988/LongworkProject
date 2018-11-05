@@ -1,17 +1,4 @@
-#include "../include/utils.hpp"
-
-int writeFile(Data &data, string fileName)
-{
-    ofstream outFile(fileName, ios::binary);
-
-    outFile.write(data.getCharString(), data.getDataSize());
-
-    cout << fileName << " Was written!" << endl;
-
-    outFile.close();
-
-    return 1;
-}
+#include "utils.hpp"
 
 int receivePart(int receivedSocket, Data& data, int len)
 {
@@ -58,13 +45,13 @@ int receiveAll(int receivedSocket, Data& data)
 	return 1;
 }
 
-int sendPart(int receivedSocket, string buf, int len)
+int sendPart(int receivedSocket, const char* buf, int len)
 {
 	int total = 0;
 
 	while (total < len)
 	{
-		int n = send(receivedSocket, buf.c_str() + total, len - total, 0);
+		int n = send(receivedSocket, buf + total, len - total, 0);
 
 		if (n == -1)
 		{
@@ -77,12 +64,14 @@ int sendPart(int receivedSocket, string buf, int len)
 	return total;
 }
 
+// если стринг пустой, то отправляет _c_buffer, иначе стрингу
+
 int sendAll(int receiveSocket, Data data)
 {
 	//Сначала нам необходимо отправить размер отправляемых данных
-	
+
 	Data dataSize(data.getDataSize());
-	
+
 	//Посылаем размер данных
 	if (sendPart(receiveSocket, dataSize.getCharString(), BUF_LEN) < 0)
 	{
@@ -91,6 +80,7 @@ int sendAll(int receiveSocket, Data data)
 	}
 
 	//Посылаем сами данные
+
 	if (sendPart(receiveSocket, data.getCharString(), data.getDataSize()) < 0)
 	{
 		throw runtime_error("Could't send data, check connection");

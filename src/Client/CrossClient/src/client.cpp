@@ -1,8 +1,8 @@
-#include "../include/client.hpp"
-#include "../include/utils.hpp"
+#include "client.hpp"
+#include "utils.hpp"
 
 int connectToServer(string ip, short port)
-{	
+{
 #ifdef _WIN32
 	WSADATA wsaData;
 	WORD wVersionRequested = MAKEWORD(2, 2);
@@ -12,25 +12,22 @@ int connectToServer(string ip, short port)
 		cout << "WSAStartup error: " << WSAGetLastError() << endl;
 		return -1;
 	}
-
-
 #endif
 
-	int clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
 
 #ifdef _WIN32
 	if (clientSocket < 0)
 	{
 		cout << "Socket start error - " << WSAGetLastError() << endl;
 
-		
 		return -1;
 	}
 
 #endif
 	struct sockaddr_in addr;
 
-	addr.sin_port   = htons(port);
+	addr.sin_port = htons(port);
 	addr.sin_family = AF_INET;
 
 	if (inet_addr(ip.c_str()) != INADDR_NONE)
@@ -50,9 +47,9 @@ int connectToServer(string ip, short port)
 	}
 
 	CLEAR
-	cout << "Connected!" << endl;
+		cout << "Connected!" << endl;
 
-	return clientSocket;
+	return (int)clientSocket;
 
 }
 
@@ -73,11 +70,11 @@ int runApplication(int receivedSocket)
 		getline(cin, cmd);
 	}
 
-	if (sendAll(receivedSocket, cmd.c_str()) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
+	if (sendAll(receivedSocket, cmd) < 0)
+	{
+		cout << "Connection with server was lost:" << strerror(errno) << endl;
+		return -1;
+	}
 
 	return 1;
 }
@@ -86,160 +83,705 @@ int sendFile(int receivedSocket)
 {
 	string filePath;
 	string pathFileName;
-    ifstream file;
 
-	cout << "Enter path to file: " << endl;
+	FILE* fp = nullptr;
 
-    do
-    {
-        getline(cin, filePath);
+	cout << "Enter path to file:" << endl;
 
-        file.open (filePath.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
+	getline(cin, filePath);
 
-        if (!file.is_open())
-            cout << "Bad file path!" << endl;
-    }
-    while (!file.is_open());
+	// TODO: Открывает ли fopen линуксовые пути? если нет, то попробовать пропарсить filePath и добавить / к каждому слешу
+	while (!(fp = fopen(filePath.c_str(), "rb"))) 
+	{
+		cout << "File is not found!" << endl;
+		cout << "Enter path to file:" << endl;
 
-    size_t slashPos = filePath.rfind('\\');
+		getline(cin, filePath); 
+	}
 
-    slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
+#ifdef _WIN32  
+	size_t slashPos = filePath.rfind('\\');
+#elif
+	size_t slashPos = filePath.rfind('/'); 
+#endif
 
-	if (sendAll(receivedSocket, pathFileName.c_str()) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
+	// отрезаем имя файла
+	slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-    file.seekg(0, std::ios_base::end);
-    std::ifstream::pos_type endPos = file.tellg();
-    file.seekg(0, std::ios_base::beg);
+	if (sendAll(receivedSocket, pathFileName) < 0) // отправляем имя файла
+	{
+		fclose(fp);
 
-    int fileSize = (int)(endPos - file.tellg());
+		cout << "Connection with server was lost:" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
 
-	Data fileData;
+	Data request;
 
-	fileData.createBuffer(fileSize);
-    file.read(fileData.getBuffer(), fileSize);
+	// принимаем ответ сервера
 
-    if (file)
-        std::cout << "All characters read successfully.";
-    else
-        std::cout << "Error: only " << file.gcount() << " could be read";
+	if (receiveAll(receivedSocket, request) < 0)
+	{
+		fclose(fp);
 
-    if (sendAll(receivedSocket, fileData.getBuffer()) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
 
-    file.close();
+	if (request.getString() == "1")
+	{
+		cout << "Preparing to send file: " << pathFileName << endl;
+	}
+	else
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost" << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	long long countOfBlocks = 0;
+	string info;
+
+	while (!fseek(fp, BLOCK_SIZE, SEEK_CUR))
+	{
+		if (fgetc(fp) == EOF)
+		{
+			if (feof(fp))
+			{
+				info = "1";
+				break;
+			}
+			else
+			{
+				info = "0";
+				break;
+			}
+		}
+
+		fseek(fp, -1, SEEK_CUR);
+
+		++countOfBlocks;
+	}
+
+	if (sendAll(receivedSocket, info) < 0) // посылаем информацию о том нужно ли дальше продолжать работу с сервером
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost:" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+	
+	if (info == "0")
+	{
+		fclose(fp);
+
+		cout << "Problem with sending file. Error on server." << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (sendAll(receivedSocket, to_string(countOfBlocks)) < 0) // если все успешно, то сервер готов принимать количество блоков
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (receiveAll(receivedSocket, request) < 0) // приняли ответ от сервера, что он готов/не готов принимать блоки данных
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (request.getString() == "0")
+	{
+		fclose(fp);
+
+		cout << "Problem with sending file. Error on server." << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	fseek(fp, 0, SEEK_SET);
+
+	cout << "Start sending..." << endl;
+
+	long long progress = 0;
+	long long result   = 0;
+	long long procent  = countOfBlocks / 100;
+
+	try
+	{
+		// отправляем блоки данных и ждем ответа от сервера
+
+		char buff[BLOCK_SIZE];
+
+		for (long long i = 0; i < countOfBlocks; ++i)
+		{	
+			fread(buff, 1, BLOCK_SIZE, fp);
+
+			Data data(buff);
+
+			if (sendAll(receivedSocket, data) < 0)
+			{
+				fclose(fp);
+
+				cout << "Connection with server was lost: " << strerror(errno) << endl;
+				cout << "Press ENTER to continue..." << endl;
+				cin.get();
+				return -1;
+			}
+
+			if (receiveAll(receivedSocket, request) < 0) // приняли ответ от сервера, что он готов/не готов принимать следующий блок
+			{
+				fclose(fp);
+
+				cout << "Connection with server was lost" << strerror(errno) << endl;
+				cout << "Press ENTER to continue..." << endl;
+				cin.get();
+				return -1;
+			}
+
+			if (request.getString() == "0")
+			{
+				fclose(fp);
+
+				cout << "Connection with server was lost " << strerror(errno) << endl;
+				cout << "Press ENTER to continue..." << endl;
+				cin.get();
+				return -1;
+			}
+
+			result += 1;
+			
+			if (result >= procent)
+			{
+				++progress;
+				result = 0;
+				cout << "Progress: " << progress << "%" << '\r';
+			}
+		}
+
+		long lastBytesCount = 0; // оставшийся хвост ( <= BLOCK_SIZE )
+
+		while (!fseek(fp, 1, SEEK_CUR))
+		{
+			if (fgetc(fp) == EOF)
+			{
+				if (feof(fp))
+				{
+					info = "1";
+
+					if (sendAll(receivedSocket, info) < 0)
+					{
+						fclose(fp);
+
+						cout << "Connection with server was lost: " << strerror(errno) << endl;
+						cout << "Press ENTER to continue..." << endl;
+						cin.get();
+						return -1;
+					}
+
+					break;
+				}
+				else
+				{
+					info = "0";
+
+					if (sendAll(receivedSocket, info) < 0)
+					{
+						fclose(fp);
+
+						cout << "Connection with server was lost: " << strerror(errno) << endl;
+						cout << "Press ENTER to continue..." << endl;
+						cin.get();
+						return -1;
+					}
+
+					fclose(fp);
+
+					cout << "Error write" << endl;
+					cout << "Press ENTER to continue..." << endl;
+					cin.get();
+					return -1;
+				}
+			}
+
+			fseek(fp, -1, SEEK_CUR);
+
+			++lastBytesCount;
+		}
+
+		fseek(fp, -lastBytesCount - 1, SEEK_CUR);
+
+		if (sendAll(receivedSocket, to_string(lastBytesCount)) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		if (receiveAll(receivedSocket, request) < 0) // приняли ответ от сервера, что он готов/не готов принимать следующий блок
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost" << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		if (request.getString() == "0")
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost" << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		fread(buff, 1, lastBytesCount + 1, fp);
+
+		if (sendAll(receivedSocket, buff) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		cout << "Progress: 100%" << endl;
+	}
+	catch (bad_alloc &ba)
+	{
+		fclose(fp);
+
+		throw runtime_error(ba.what());
+	}
+
+	if (receiveAll(receivedSocket, request) < 0) // приняли ответ от сервера, о том, что файл успешно/неуспешно передан
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (request.getString() == "0")
+	{
+		fclose(fp);
+
+		cout << "Problem with sending file. Error on server." << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	cout << "File: \"" << pathFileName << "\" is successfully sending!" << endl;
+
+	fclose(fp);
+
+	cout << "Press ENTER to continue..." << endl;
+	cin.get();
 
 	return 1;
 }
 
 int getFile(int receivedSocket)
 {
-    string filePath;
-    Data eData, data, resData;
+	string filePath;
+	string pathFileName;
+	string info;
+	Data request;
 
-    cout << "Enter path to file: " << endl;
+	do
+	{
+		cout << "Enter path to file: " << endl;
 
-    getline(cin, filePath);
+		getline(cin, filePath);
 
-    if (sendAll(receivedSocket, filePath.c_str()) < 0)
-    {
-        cout << "Connection with server was lost: " << strerror(errno) << endl;
-        return -1;
-    }
+		if (sendAll(receivedSocket, filePath) < 0)
+		{
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
 
-	Data resultData;
-	resultData.createBuffer(RESULT_LEN);
+		if (receiveAll(receivedSocket, request) < 0)
+		{
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
 
-	if (receiveAll(receivedSocket, resultData) < 0)
+		if (request.getString() == "0")
+		{
+			cout << "File is not found!" << endl;
+		}
+	} 
+	while (request.getString() == "0");
+
+	if (receiveAll(receivedSocket, request) < 0) // принимаем имя файла
 	{
 		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
 		return -1;
 	}
 
-	if (resultData.getCharString() == "badPath ")
+	pathFileName = request.getString();
+
+	cout << "Prepare to start getting file: " << pathFileName << endl;
+	
+	FILE* fp = nullptr;
+
+	if (!(fp = fopen(pathFileName.c_str(), "wb"))) // создаем файл
 	{
-		cout << "Bad file path!" << endl;
-		system("pause");
-		return 1;
+		cout << "File \"" << pathFileName << "\" is not create!" << endl;
+
+		string error = "0";
+
+		if (sendAll(receivedSocket, error) < 0) // в случае неудачи отвечаем серверу нулем
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
 	}
 
-	if (receiveAll(receivedSocket, eData) < 0)
+	info = "1";
+
+	if (sendAll(receivedSocket, info) < 0) // если все хорошо, то отсылаем единицу
 	{
+		fclose(fp);
+
 		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
 		return -1;
 	}
 
-	cout << "Getting file by name: " << eData.getCharString() << endl;
-
-	if (receiveAll(receivedSocket, data) < 0)
+	if (receiveAll(receivedSocket, request) < 0) // принимаем ответ клиента об успехе/неуспехе подсчета количества блоков
 	{
+		fclose(fp);
+
 		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
 		return -1;
 	}
 
-	Data result;
-
-	if (receiveAll(receivedSocket, result) < 0)
+	if (request.getString() == "0") // если все плохо, прекращаем работу функции
 	{
+		fclose(fp);
+
 		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
 		return -1;
 	}
 
-	if (result.getCharString() == "good")
+	if (receiveAll(receivedSocket, request) < 0) // тут количество блоков
 	{
-		writeFile(data, eData.getCharString());
-		cout << "File: " << eData.getCharString() << " was written!" << endl;
-		system("pause");
-	}
-	else
-	{
-		cout << "File: " << eData.getCharString() << " wasn't written" << endl;
-		system("pause");
-		return 0;
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
 	}
 
+	long long countOfBlocks = 0;
+
+	try
+	{
+		countOfBlocks = atoll(request.getString().c_str()); // string to long long
+	}
+	catch (bad_alloc& ba)
+	{
+		fclose(fp);
+
+		cout << "Problem with getting file: " << pathFileName << endl;
+
+		throw runtime_error(ba.what());
+	}
+
+	if (sendAll(receivedSocket, info) < 0) // если все хорошо, то отсылаем единицу. Готовы начать принимать файл
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	long long progress = 0;
+	long long result = 0;
+	long long procent = countOfBlocks / 100;
+
+	for (int i = 0; i < countOfBlocks; ++i)
+	{
+		if (receiveAll(receivedSocket, request) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		if (!fwrite(request.getBuffer(), 1, BLOCK_SIZE, fp)) // пытаемся записать блок
+		{
+			info = "0";
+
+			if (sendAll(receivedSocket, info) < 0)
+			{
+				fclose(fp);
+
+				cout << "Connection with server was lost: " << strerror(errno) << endl;
+				cout << "Press ENTER to continue..." << endl;
+				cin.get();
+				return -1;
+			}
+		}
+
+		info = "1";
+
+		if (sendAll(receivedSocket, info) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		result += 1;
+
+		if (result >= procent)
+		{
+			++progress;
+			result = 0;
+			cout << "Progress: " << progress << "%" << '\r';
+		}
+	}
+
+	if (receiveAll(receivedSocket, request) < 0)
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (request.getString() == "0")
+	{
+		fclose(fp);
+
+		cout << "Problem with getting file: " << pathFileName << endl;
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (receiveAll(receivedSocket, request) < 0)
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	long lastBytesCount = 0;
+
+	try
+	{
+		lastBytesCount = atol(request.getString().c_str()); // string to long long
+	}
+	catch (bad_alloc& ba)
+	{
+		info = "0";
+
+		if (sendAll(receivedSocket, info) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+
+		fclose(fp);
+
+		cout << "Problem with getting file: " << pathFileName << endl;
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		throw runtime_error(ba.what());
+	}
+
+	info = "1";
+
+	if (sendAll(receivedSocket, info) < 0)
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (receiveAll(receivedSocket, request) < 0) // приняли остатки файли
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (!fwrite(request.getBuffer(), 1, lastBytesCount + 1, fp))
+	{
+		info = "0";
+
+		if (sendAll(receivedSocket, info) < 0)
+		{
+			fclose(fp);
+
+			cout << "Connection with server was lost: " << strerror(errno) << endl;
+			cout << "Press ENTER to continue..." << endl;
+			cin.get();
+			return -1;
+		}
+	}
+
+	cout << "Progress: 100%" << endl;
+
+	info = "1";
+
+	if (sendAll(receivedSocket, info) < 0)
+	{
+		fclose(fp);
+
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	cout << pathFileName << " was successfully getting!" << endl;
+	cout << "Press ENTER to continue..." << endl;
+	cin.get();
+
+	fclose(fp);
 	return 1;
 }
 
 int deleteFile(int receivedSocket)
 {
-    string filePath;
+	string filePath;
+	string pathFileName;
+	Data request;
 
-    cout << "Enter path to file: " << endl;
-    getline(cin, filePath);
+	cout << "Enter path to file: " << endl;
+	getline(cin, filePath);
 
-    if (sendAll(receivedSocket, filePath) < 0)
-    {
-        cout << "Connection with server was lost:" << strerror(errno) << endl;
-        return -1;
-    }
+#ifdef _WIN32  
+	size_t slashPos = filePath.rfind('\\');
+#elif
+	size_t slashPos = filePath.rfind('/');
+#endif
 
-	Data result;
-	receiveAll(receivedSocket, result);
-	string pathRes = result.getCharString();
+	// отрезаем имя файла
+	slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
 
-	if (pathRes == "badPath ")
+	if (sendAll(receivedSocket, filePath) < 0) // отправляем путь
 	{
-		cout << "Bad file path!" << endl;
-		system("pause");
-		return 0;
+		cout << "Connection with server was lost:" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
 	}
 
-	cout << "File was deleted!" << endl;
-	system("pause");
-  
+	if (sendAll(receivedSocket, pathFileName) < 0) // отправляем имя файла
+	{
+		cout << "Connection with server was lost:" << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (receiveAll(receivedSocket, request) < 0) // принимаем ответ от сервера. Смог\не смог удалить файл 
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (request.getString() == "0")
+	{
+		cout << "File \"" << pathFileName << "\" does not exist!" << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return 0;
+	}
+	else
+	{
+		cout << "File \"" << pathFileName << "\" was successfully deleted!" << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return 1;
+	}
+
 	return 1;
 }
 
 int processRequest(int receivedSocket)
 {
-    while (true)
+	while (true)
 	{
 		cout << "1. Run Application" << endl;
 		cout << "2. Send File" << endl;
@@ -256,86 +798,86 @@ int processRequest(int receivedSocket)
 		{
 		case 1:
 			CLEAR
-			if ((sent = sendIdenty(receivedSocket, '1')) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                return -1;
-            }
+				if ((sent = sendIdenty(receivedSocket, '1')) < 0)
+				{
+					cout << "Connection with server was lost" << endl;
+					return -1;
+				}
 
 			if ((runApplication(receivedSocket)) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                return -1;
-            }
+			{
+				cout << "Connection with server was lost" << endl;
+				return -1;
+			}
 
 			CLEAR
-			break;
+				break;
 
 		case 2:
 			CLEAR
-			if ((sent = sendIdenty(receivedSocket, '2')) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+				if ((sent = sendIdenty(receivedSocket, '2')) < 0)
+				{
+					cout << "Connection with server was lost" << endl;
+
+					return -1;
+				}
 
 			if ((sendFile(receivedSocket)) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+			{
+				cout << "Connection with server was lost" << endl;
+
+				return -1;
+			}
 
 			CLEAR
-			break;
+				break;
 
 		case 3:
 			CLEAR
-			if ((sent = sendIdenty(receivedSocket, '3')) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+				if ((sent = sendIdenty(receivedSocket, '3')) < 0)
+				{
+					cout << "Connection with server was lost: " << endl;
+
+					return -1;
+				}
 
 			if (getFile(receivedSocket) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+			{
+				cout << "Connection with server was lost: " << endl;
+
+				return -1;
+			}
 
 			CLEAR
-			break;
+				break;
 
 		case 4:
 			CLEAR
-			if ((sent = sendIdenty(receivedSocket, '4')) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+				if ((sent = sendIdenty(receivedSocket, '4')) < 0)
+				{
+					cout << "Connection with server was lost: " << endl;
 
-			if((deleteFile(receivedSocket)) < 0)
-            {
-                cout << "Connection with server was lost: " << endl;
-                
-                return -1;
-            }
+					return -1;
+				}
+
+			if ((deleteFile(receivedSocket)) < 0)
+			{
+				cout << "Connection with server was lost: " << endl;
+
+				return -1;
+			}
 
 			CLEAR
-			break;
+				break;
 		case 0:
 			CLEAR
-			sendIdenty(receivedSocket, '5');
+				sendIdenty(receivedSocket, '5');
 			CLEAR
-			return 0;
+				return 0;
 
 		default:
 			CLEAR
-			cout << "Choose one of the point\n" << endl;
+				cout << "Choose one of the point\n" << endl;
 			break;
 		}
 	}

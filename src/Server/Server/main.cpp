@@ -1,14 +1,15 @@
-﻿#include "server.hpp"
+#include "server.hpp"
 #include "mainHeader.hpp"
 
 using namespace std;
 
 int main()
 {
-    string ip;
+	string ip;
 
-	cout << "Enter IP address: ";
-	cin >> ip;
+	//cout << "Enter IP address: ";
+	//cin >> ip;
+	ip = "127.0.0.1";
 
 	int socketServer = startServer(ip.c_str());
 

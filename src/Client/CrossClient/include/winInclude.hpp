@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #ifndef UNICODE
 #define UNICODE
@@ -21,5 +21,6 @@
 #include <cstddef>
 #include <vector>
 #include <new>
+#include <cstdio>
 
 using namespace std;

@@ -1,20 +1,20 @@
 #include "server.hpp"
 #include "utils.hpp"
-//Р¤СѓРЅРєС†РёСЏ, СЃС‚Р°СЂС‚СѓСЋС‰Р°СЏ СЃРµСЂРІРµСЂ
+
 int startServer(const char* ip)
 {
 #ifdef _WIN32
-		WSADATA wsaData;
-		WORD wVersionRequested = MAKEWORD(2, 2);
+	WSADATA wsaData;
+	WORD wVersionRequested = MAKEWORD(2, 2);
 
-		if (int error = WSAStartup(wVersionRequested, &wsaData))
-		{
-			printf("WSAStartup failed with error: %d\n", error);
-			return -1;
-		}
+	if (int error = WSAStartup(wVersionRequested, &wsaData))
+	{
+		printf("WSAStartup failed with error: %d\n", error);
+		return -1;
+	}
 #endif
 
-	int socketServer = socket(AF_INET, SOCK_STREAM, 0);
+	int socketServer = (int)socket(AF_INET, SOCK_STREAM, 0);
 
 	if (socketServer < 0)
 	{
@@ -71,33 +71,35 @@ int startListenSocket(int socketServer)
 		{
 			hostent* host = NULL;
 
-            if ((socketClient = accept(socketServer, (sockaddr*)&clientAddr, &clientAddrSize)) < 0)
-            {
-                cout << getStrTime() << "Failed to accept socket" << strerror(errno) << endl;
-                CLOSE(socketServer);
-                return -1;
-            }
+			if ((socketClient = (int)accept(socketServer, (sockaddr*)&clientAddr, &clientAddrSize)) < 0)
+			{
+				cout << getStrTime() << "Failed to accept socket" << strerror(errno) << endl;
+				CLOSE(socketServer);
+				return -1;
+			}
 
-			#ifdef __linux__
+			string clientIp;
+
+		#ifdef __linux__
 			char* buffer = new char[256];
 			inet_ntop(AF_INET, &clientAddr.sin_addr.s_addr, buffer, 256);
-			string clientIp = buffer;
+			clientIp = buffer;
 			delete buffer;
-			#elif _WIN32
-			string clientIp = (char*)&clientAddr.sin_addr.s_addr;
-			#endif
+		elif _WIN32
+			clientIp = (char*)&clientAddr.sin_addr.s_addr;
+		#endif
 
 			doListen = false;
 			if (socketClient >= 0)
 			{
 				host = gethostbyaddr(clientIp.c_str(), 4, AF_INET);
-				if(host == NULL)
+				if (host == NULL)
 				{
 					clientName = clientIp;
 					cout << getStrTime() << "Can't get host info - " << clientIp << " " << strerror(h_errno) << endl;
 					doListen = false;
-                    continue;
-                }
+					continue;
+				}
 				cout << getStrTime() << "User: " << host->h_name << " connected successfully!" << endl;
 				clientName = host->h_name;
 				doListen = false;
@@ -110,31 +112,31 @@ int startListenSocket(int socketServer)
 
 		while (receiveFlag)
 		{
-		    try
-		    {
-		        char* buf = new char[BUF_LEN];
+			try
+			{
+				char* buf = new char[BUF_LEN];
 
-                while (receiveArg == 0)
-                {
-                    receiveArg = recv(socketClient, buf, sizeof(char), 0);
-                }
+				while (receiveArg == 0)
+				{
+					receiveArg = recv(socketClient, buf, sizeof(char), 0);
+				}
 
-                if (receiveArg == -1)
-                {
-                    cout << getStrTime() << "User: " << clientName << " disconnected! Because of: " << strerror(errno) << endl;
-                    break;
-                }
+				if (receiveArg == -1)
+				{
+					cout << getStrTime() << "User: " << clientName << " disconnected! Because of: " << strerror(errno) << endl;
+					break;
+				}
 
-                jobIdentifier = buf[0];
-                buf[0] = '0';
+				jobIdentifier = buf[0];
+				buf[0] = '0';
 
-                delete buf;	
-		    }
-		    catch(bad_alloc& ba)
-		    {
-		        cerr << "Out of memory." << ba.what() << endl;
-		        return -1;
-		    }
+				delete buf;
+			}
+			catch (bad_alloc& ba)
+			{
+				cerr << "Out of memory." << ba.what() << endl;
+				return -1;
+			}
 
 			receiveArg = 0;
 			string command;
@@ -144,9 +146,8 @@ int startListenSocket(int socketServer)
 			switch (jobIdentifier)
 			{
 			case '1':
-				cout << getStrTime() << "Launch file!" << endl;
-
-				if (!receiveAll(socketClient, data))
+			{
+				if (receiveAll(socketClient, data) < 0)
 				{
 					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
@@ -154,117 +155,642 @@ int startListenSocket(int socketServer)
 				}
 
 				command = data.getCharString();
-				runFile(command);
+				runFile(command); // позже допилить результат команды! На клиент нужно что-то возвращать!
 
 				jobIdentifier = '0';
 				break;
+			}
 			case '2':
+			{
 				cout << getStrTime() << "Wait to file name!" << endl;
 
-                if (!receiveAll(socketClient, eData))
+				if (receiveAll(socketClient, eData) < 0)
 				{
 					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                cout << getStrTime() << "Getting file by name: " << eData.getCharString() << endl;
+				string fileName = eData.getCharString();
 
-				if (!receiveAll(socketClient, data))
+				cout << getStrTime() << "Getting file by name: " << fileName << endl;
+
+				FILE* fp = nullptr;
+
+				if (!(fp = fopen(eData.getCharString(), "wb")))
+				{
+					cout << getStrTime() << "File \"" << fileName << "\" is not create!" << endl;
+
+					string error = "0";
+
+					if (sendAll(socketClient, error) < 0) // в случае неудачи отвечаем клиенту нулем
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
+				
+				string request = "1";
+
+				if (sendAll(socketClient, request) < 0) // если все хорошо, то отсылаем единицу
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (receiveAll(socketClient, eData) < 0) // принимаем ответ клиента об успехе/неуспехе подсчета количества блоков
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (eData.getString() == "0") // если все плохо, прекращаем работу функции
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " can't send file" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (receiveAll(socketClient, eData) < 0) // тут количество блоков
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				long long countOfBlocks = 0;
+
+				try
+				{
+					countOfBlocks = atoll(eData.getString().c_str()); // string to long long
+				}
+				catch (bad_alloc& ba)
+				{
+					fclose(fp);
+
+					cout << "Problem with getting file: " << fileName << endl;
+
+					throw runtime_error(ba.what());
+				}
+
+				if (sendAll(socketClient, request) < 0) // если все хорошо, то отсылаем единицу. Готовы начать принимать файл
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				/*if (request == "0")
+				{
+					fclose(fp);
+
+					cout << "Problem with getting file: " << fileName << endl;
+					break;
+				}*/
+
+				for (int i = 0; i < countOfBlocks; ++i)
+				{
+					if (receiveAll(socketClient, eData) < 0)
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					if (!fwrite(eData.getBuffer(), 1, BLOCK_SIZE, fp)) // пытаемся записать блок
+					{
+						request = "0";
+
+						if (sendAll(socketClient, request) < 0)
+						{
+							cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+							receiveFlag = false;
+							break;
+						}
+					}
+
+					request = "1";
+
+					if (sendAll(socketClient, request) < 0)
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
+
+				if (receiveAll(socketClient, eData) < 0)
 				{
 					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                writeFile(data, eData.getCharString());
+				if (eData.getString() == "0")
+				{
+					fclose(fp);
+
+					cout << "Problem with getting file: " << fileName << endl;
+					break;
+				}
+
+				if (receiveAll(socketClient, eData) < 0)
+				{
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				long lastBytesCount = 0;
+
+				try
+				{
+					lastBytesCount = atol(eData.getString().c_str()); // string to long long
+				}
+				catch (bad_alloc& ba)
+				{
+					request = "0";
+
+					if (sendAll(socketClient, request) < 0)
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					fclose(fp);
+
+					cout << "Problem with getting file: " << fileName << endl;
+
+					throw runtime_error(ba.what());
+				}
+
+				request = "1";
+
+				if (sendAll(socketClient, request) < 0)
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (receiveAll(socketClient, eData) < 0) // приняли остатки файла
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (!fwrite(eData.getBuffer(), 1, lastBytesCount + 1, fp)) 
+				{
+					request = "0";
+
+					if (sendAll(socketClient, request) < 0)
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
+
+				request = "1";
+
+				if (sendAll(socketClient, request) < 0)
+				{
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				cout << getStrTime() << fileName << " was successfully writen!" << endl;
+
+				fclose(fp);
+
 				jobIdentifier = '0';
 				break;
+			}
 			case '3':
-            {
+			{
+				FILE* fp = nullptr;
+				string info;
+				string filePath;
+				string oldPath;
+				string pathFileName;
+
 				cout << getStrTime() << "Wait to file path!" << endl;
 
-				if (!receiveAll(socketClient, eData))
+				do
 				{
+					if (receiveAll(socketClient, eData) < 0)
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					oldPath = eData.getString();
+
+					for (int i = 0; i < oldPath.length(); ++i) // Тут парсим путь под нашу операционку
+					{
+
+						if (oldPath[i] == '\\' || oldPath[i] == '/')
+						{
+#ifdef _WIN32 
+							filePath.push_back('\\');
+#elif
+							filePath.push_back('/');
+#endif
+						}
+						else
+						{
+							filePath.push_back(oldPath[i]);
+						}
+					}
+
+					if (fp = fopen(filePath.c_str(), "rb"))
+					{
+						info = "1";
+					}
+					else
+					{
+						info = "0";
+					}
+					
+					if (sendAll(socketClient, info) < 0) // отправляем данные о том, смогли/не смогли открыть файл
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				} 
+				while (info == "0");
+
+#ifdef _WIN32 // TODO: 2 слеша или один на линуксе? Поидее же один? 
+				size_t slashPos = filePath.rfind('\\');
+#elif
+				size_t slashPos = filePath.rfind('/');
+#endif
+
+				// отрезаем имя файла
+				slashPos == string::npos ? pathFileName = filePath : pathFileName = filePath.substr(slashPos + 1);
+
+				if (sendAll(socketClient, pathFileName) < 0)  // отправляем имя файла
+				{
+					fclose(fp);
+
 					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                int result = sendFile(socketClient, eData);
+				if (receiveAll(socketClient, eData) < 0)
+				{
+					fclose(fp);
 
-                if(result == 42)
-                {
-                    break;
-                }
-                else if(result)
-                {
-                    cout << getStrTime() << "All is good!" << endl;
-                    sendAll(socketClient, "good");
-                }
-                else
-                {
-                    cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
-                    receiveFlag = false;
-                    sendAll(socketClient, "bad ");
-                    break;
-                }
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (eData.getString() == "1")
+				{
+					cout << getStrTime() << "Preparing to send file: " << pathFileName << endl;
+				}
+				else
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				long long countOfBlocks = 0;
+
+				while (!fseek(fp, BLOCK_SIZE, SEEK_CUR))
+				{
+					if (fgetc(fp) == EOF)
+					{
+						if (feof(fp))
+						{
+							info = "1";
+							break;
+						}
+						else
+						{
+							info = "0";
+							break;
+						}
+					}
+
+					fseek(fp, -1, SEEK_CUR);
+
+					++countOfBlocks;
+				}
+
+				if (sendAll(socketClient, info) < 0) // посылаем информацию о том нужно ли дальше продолжать работу с сервером
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (info == "0")
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (sendAll(socketClient, to_string(countOfBlocks)) < 0) // если все успешно, то сервер готов принимать количество блоков
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+				
+				if (receiveAll(socketClient, eData) < 0) // приняли ответ от сервера, что он готов/не готов принимать блоки данных
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (eData.getString() == "0")
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				fseek(fp, 0, SEEK_SET);
+
+				cout << getStrTime() << "Start sending..." << endl;
+
+				try
+				{
+					// отправляем блоки данных и ждем ответа от сервера
+
+					char buff[BLOCK_SIZE];
+
+					for (long long i = 0; i < countOfBlocks; ++i)
+					{
+						fread(buff, 1, BLOCK_SIZE, fp);
+
+						Data data(buff);
+
+						if (sendAll(socketClient, data) < 0)
+						{
+							fclose(fp);
+
+							cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+							receiveFlag = false;
+							break;
+						}
+
+						if (receiveAll(socketClient, eData) < 0) // приняли ответ от сервера, что он готов/не готов принимать следующий блок
+						{
+							fclose(fp);
+
+							cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+							receiveFlag = false;
+							break;
+						}
+
+						if (eData.getString() == "0")
+						{
+							fclose(fp);
+
+							cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+							receiveFlag = false;
+							break;
+						}
+					}
+
+					long lastBytesCount = 0; // оставшийся хвост ( <= BLOCK_SIZE )
+
+					while (!fseek(fp, 1, SEEK_CUR))
+					{
+						if (fgetc(fp) == EOF)
+						{
+							if (feof(fp))
+							{
+								info = "1";
+
+								if (sendAll(socketClient, info) < 0)
+								{
+									fclose(fp);
+
+									cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+									receiveFlag = false;
+									break;
+								}
+
+								break;
+							}
+							else
+							{
+								info = "0";
+
+								if (sendAll(socketClient, info) < 0)
+								{
+									fclose(fp);
+
+									cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+									receiveFlag = false;
+									break;
+								}
+
+								fclose(fp);
+
+								cout << getStrTime() << "Error write" << endl;
+								return -1;
+							}
+						}
+
+						fseek(fp, -1, SEEK_CUR);
+
+						++lastBytesCount;
+					}
+
+					fseek(fp, -lastBytesCount - 1, SEEK_CUR);
+
+					if (sendAll(socketClient, to_string(lastBytesCount)) < 0)
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					if (receiveAll(socketClient, eData) < 0) // приняли ответ от сервера, что он готов/не готов принимать следующий блок
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					if (eData.getString() == "0")
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+
+					fread(buff, 1, lastBytesCount + 1, fp);
+
+					if (sendAll(socketClient, buff) < 0)
+					{
+						fclose(fp);
+
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
+				catch (bad_alloc &ba)
+				{
+					fclose(fp);
+
+					throw runtime_error(ba.what());
+				}
+
+				if (receiveAll(socketClient, eData) < 0) // приняли ответ от сервера, о том, что файл успешно/неуспешно передан
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				if (eData.getString() == "0")
+				{
+					fclose(fp);
+
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
+					break;
+				}
+
+				cout << getStrTime() << "File: \"" << pathFileName << "\" is successfully sending!" << endl;
+
+				fclose(fp);
 
 				jobIdentifier = '0';
 				break;
 			}
 			case '4':
+			{
 				cout << getStrTime() << "Wait to file path!" << endl;
 
-				if (!receiveAll(socketClient, eData))
+				if (receiveAll(socketClient, eData) < 0) // принимаем путь
 				{
 					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
 					receiveFlag = false;
 					break;
 				}
 
-                string stringPath;
+				string oldPath = eData.getString();
 
-                for (int i = 0; i < eData.getDataSize(); ++i)
-                {
-                    stringPath.push_back(eData.getCharString()[i]);
-
-                    #ifdef _WIN32
-                    if (eData.getCharString()[i] == '\\')
-                        stringPath.push_back('\\');
-                    #else
-                    if (eData.getCharString()[i] == '/')
-                        stringPath.push_back('/');
-                    #endif
-                }
-
-				ifstream file;
-
-   				file.open (stringPath.c_str(), std::ios::in | std::ios::binary | std::ios::ate);
-
-				if (!file.is_open())
+				if (receiveAll(socketClient, eData) < 0) // принимаем имя файла
 				{
-					cout << getStrTime() << "Bad file path!" << endl;
-					send(socketClient, "badPath ", 9, 0);
-					jobIdentifier = '0';
+					cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+					receiveFlag = false;
 					break;
 				}
 
-				cout << getStrTime() << "Deleting a file: " << eData.getCharString() << endl;
-				send(socketClient, "good ", 9, 0);
-				file.close();
-				remove(stringPath.c_str());
+				string pathFileName = eData.getString();
+				string filePath;
+				string info;
+
+				for (int i = 0; i < oldPath.length(); ++i) // Тут парсим путь под нашу операционку
+				{
+
+					if (oldPath[i] == '\\' || oldPath[i] == '/')
+					{
+#ifdef _WIN32 
+						filePath.push_back('\\');
+#elif
+						filePath.push_back('/');
+#endif
+					}
+					else
+					{
+						filePath.push_back(oldPath[i]);
+					}
+				}
+
+				if (remove(filePath.c_str())) // удаляем файл
+				{
+					info = "0";
+
+					cout << getStrTime() << "File: " << pathFileName << " was not found!" << endl;
+
+					if (sendAll(socketClient, info) < 0) // в случае неудачи отвечаем клиенту нулем
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
+				else
+				{
+					info = "1";
+
+					cout << getStrTime() << "File: " << pathFileName << " was successfully found!" << endl;
+
+					if (sendAll(socketClient, info) < 0) // в случае удачного удаления отвечаем клиенту нулем
+					{
+						cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+						receiveFlag = false;
+						break;
+					}
+				}
 
 				jobIdentifier = '0';
 				break;
-
-                if (jobIdentifier == '5')
-                {
-                    cout << getStrTime() << "User: " << clientName << " disconnected!" << endl;
-                    break;
-                }
 			}
-        }
+			}
+		}
 	}
 
 	CLOSE(socketServer);
