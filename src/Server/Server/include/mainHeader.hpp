@@ -21,5 +21,5 @@
 #define BLOCK_SIZE 16384
 #define BUF_LEN 256
 #define PORT 1337
-
+#define THREAD_SIZE 1000
 using namespace std;

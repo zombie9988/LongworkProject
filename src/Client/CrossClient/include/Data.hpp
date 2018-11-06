@@ -10,7 +10,7 @@ private:
 	string _buffer;
 	char* _c_buffer;
 	int _c_buffer_len;
-
+	bool _setted = false;
 public:
 	Data()
 	{
@@ -130,7 +130,7 @@ public:
 
 	char* createBuffer(int len)
 	{
-		if (_c_buffer != nullptr && _c_buffer_len > 0)
+		if (_setted == true)
 		{
 			delete _c_buffer;
 		}
@@ -147,7 +147,7 @@ public:
 		}
 
 		_c_buffer[len] = '\0';
-
+		_setted = true;
 		return _c_buffer;
 	}
 
@@ -158,7 +158,7 @@ public:
 
 	~Data()
 	{
-		if (_c_buffer != nullptr && _c_buffer_len != 0)
+		if (_setted == true)
 		{
 			delete _c_buffer;
 		}

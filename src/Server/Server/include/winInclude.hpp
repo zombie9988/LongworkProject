@@ -24,3 +24,7 @@
 #include <new>
 #include <ws2tcpip.h>
 #include <stdexcept>
+#include <thread>
+#include <vector>
+#include <future>
+#include <chrono>
