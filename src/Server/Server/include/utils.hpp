@@ -6,7 +6,7 @@
 using namespace std;
 
 string getStrTime();
-int runFile(string cmd);
+string runFile(string cmd);
 int sendIdenty(int receivedSocket, const char id);
 int receiveAll(int receivedSocket, Data &data);
 int receivePart(int receiveSocket, Data& data, int len);

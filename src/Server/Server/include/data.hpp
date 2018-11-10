@@ -10,7 +10,7 @@ private:
 	string _buffer;
 	char* _c_buffer;
 	int _c_buffer_len;
-
+	bool _setted = false;
 public:
 	Data()
 	{
@@ -34,8 +34,6 @@ public:
 		_c_buffer = createBuffer(BLOCK_SIZE);
 
 		memcpy(_c_buffer, data, BLOCK_SIZE);
-
-		_c_buffer_len = BLOCK_SIZE;
 	}
 
 	Data(char* data)
@@ -43,8 +41,6 @@ public:
 		_c_buffer = createBuffer(BLOCK_SIZE);
 
 		memcpy(_c_buffer, data, BLOCK_SIZE);
-
-		_c_buffer_len = BLOCK_SIZE;
 	}
 
 	Data(const Data& data)
@@ -57,7 +53,7 @@ public:
 			createBuffer(data._c_buffer_len);
 			_c_buffer_len = data._c_buffer_len;
 
-			for (int i = 0; i < data._c_buffer_len; i++)
+			for (int i = 0; i < data._c_buffer_len; ++i)
 			{
 				_c_buffer[i] = data._c_buffer[i];
 			}
@@ -134,7 +130,7 @@ public:
 
 	char* createBuffer(int len)
 	{
-		if (_c_buffer != nullptr && _c_buffer_len > 0)
+		if (_setted == true)
 		{
 			delete _c_buffer;
 		}
@@ -151,7 +147,7 @@ public:
 		}
 
 		_c_buffer[len] = '\0';
-
+		_setted = true;
 		return _c_buffer;
 	}
 
@@ -162,7 +158,7 @@ public:
 
 	~Data()
 	{
-		if (_c_buffer != nullptr && _c_buffer_len != 0)
+		if (_setted == true)
 		{
 			delete _c_buffer;
 		}

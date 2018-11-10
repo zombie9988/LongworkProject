@@ -1,10 +1,31 @@
 #include "utils.hpp"
 
-int runFile(string cmd)
+string runFile(string cmd)
 {
+	string result = "";
+
 	std::cout << getStrTime() << "Doing command: " << cmd << std::endl;
 
-	return system(cmd.c_str());
+	char buff[128];
+
+	FILE* pipe = _popen(cmd.c_str(), "r");
+
+	if (!pipe)
+	{
+		fclose(pipe);
+		return result;
+	}
+
+	while (!feof(pipe))
+		if (fgets(buff, 128, pipe) != NULL)
+			result += buff;
+
+	fclose(pipe);
+
+	if (result == "")
+		result = "0";
+
+	return result;
 }
 
 string getStrTime()
@@ -52,14 +73,14 @@ int receiveAll(int receivedSocket, Data& data)
 	//Принимаем размер данных
 	if (receivePart(receivedSocket, fileSize, BUF_LEN) < 0)
 	{
-		throw runtime_error("Could't receive data, check connection");
+		//throw runtime_error("Could't receive data, check connection");
 		return -1;
 	}
 
 	//Принимаем сами данные
 	if (receivePart(receivedSocket, data, atoi(fileSize.getCharString())) < 0)
 	{
-		throw runtime_error("Could't receive data, check connection");
+		//throw runtime_error("Could't receive data, check connection");
 		return -1;
 	}
 
@@ -94,14 +115,14 @@ int sendAll(int receiveSocket, Data data)
 	//Посылаем размер данных
 	if (sendPart(receiveSocket, dataSize.getCharString(), BUF_LEN) < 0)
 	{
-		throw runtime_error("Could't send data, check connection");
+		//throw runtime_error("Could't send data, check connection");
 		return -1;
 	}
 
 	//Посылаем сами данные
 	if (sendPart(receiveSocket, data.getCharString(), data.getDataSize()) < 0)
 	{
-		throw runtime_error("Could't send data, check connection");
+		//throw runtime_error("Could't send data, check connection");
 		return -1;
 	}
 

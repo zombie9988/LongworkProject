@@ -32,6 +32,8 @@ int processClient(int socketClient)
 		}
 	}
 
+	send(socketClient, "1", sizeof(char), 0);
+
 	char jobIdentifier = '0';
 	int receiveArg = 0;
 	bool receiveFlag = true;
@@ -81,7 +83,14 @@ int processClient(int socketClient)
 			}
 
 			command = data.getCharString();
-			runFile(command); // позже допилить результат команды! На клиент нужно что-то возвращать!
+			string exec = runFile(command); 
+
+			if (sendAll(socketClient, exec) < 0)
+			{
+				cout << getStrTime() << "User: " << clientName << " was Disconnected" << endl;
+				receiveFlag = false;
+				break;
+			}
 
 			jobIdentifier = '0';
 			break;
@@ -180,14 +189,6 @@ int processClient(int socketClient)
 				receiveFlag = false;
 				break;
 			}
-
-			/*if (request == "0")
-			{
-				fclose(fp);
-
-				cout << "Problem with getting file: " << fileName << endl;
-				break;
-			}*/
 
 			for (int i = 0; i < countOfBlocks; ++i)
 			{
@@ -362,6 +363,7 @@ int processClient(int socketClient)
 				}
 				else
 				{
+					filePath = "";
 					info = "0";
 				}
 
@@ -371,9 +373,11 @@ int processClient(int socketClient)
 					receiveFlag = false;
 					break;
 				}
+
+				
 			} while (info == "0");
 
-#ifdef _WIN32 // TODO: 2 слеша или один на линуксе? Поидее же один? 
+#ifdef _WIN32 
 			size_t slashPos = filePath.rfind('\\');
 #elif
 			size_t slashPos = filePath.rfind('/');
@@ -600,9 +604,11 @@ int processClient(int socketClient)
 					break;
 				}
 
-				fread(buff, 1, lastBytesCount + 1, fp);
+				char buf[BLOCK_SIZE];
 
-				if (sendAll(socketClient, buff) < 0)
+				fread(buf, 1, lastBytesCount + 1, fp);
+
+				if (sendAll(socketClient, buf) < 0)
 				{
 					fclose(fp);
 
@@ -688,7 +694,21 @@ int processClient(int socketClient)
 			{
 				info = "0";
 
-				cout << getStrTime() << "File: " << pathFileName << " was not found!" << endl;
+				switch (errno)
+				{
+					case EACCES:
+					{
+						info = "-1";
+						cout << getStrTime() << "File: " << pathFileName << " is busy!" << endl;
+						break;
+					}
+					case ENOENT:
+					{
+						info = "-2";
+						cout << getStrTime() << "File: " << pathFileName << " was not found!" << endl;
+						break;
+					}
+				}
 
 				if (sendAll(socketClient, info) < 0) // в случае неудачи отвечаем клиенту нулем
 				{

@@ -31,14 +31,14 @@ int receiveAll(int receivedSocket, Data& data)
 	//Принимаем размер данных
 	if (receivePart(receivedSocket, fileSize, BUF_LEN) < 0)
 	{
-		throw runtime_error("Could't receive data, check connection");
+		//throw runtime_error("Could't receive data, check connection");
 		return -1;
 	}
 
 	//Принимаем сами данные
 	if (receivePart(receivedSocket, data, atoi(fileSize.getCharString())) < 0)
 	{
-		throw runtime_error("Could't receive data, check connection");
+		//throw runtime_error("Could't receive data, check connection");
 		return -1;
 	}
 
@@ -75,7 +75,7 @@ int sendAll(int receiveSocket, Data data)
 	//Посылаем размер данных
 	if (sendPart(receiveSocket, dataSize.getCharString(), BUF_LEN) < 0)
 	{
-		throw runtime_error("Could't send data, check connection");
+		//throw runtime_error("Could't send data, check connection");
 		return -1;
 	}
 
@@ -83,7 +83,7 @@ int sendAll(int receiveSocket, Data data)
 
 	if (sendPart(receiveSocket, data.getCharString(), data.getDataSize()) < 0)
 	{
-		throw runtime_error("Could't send data, check connection");
+		//throw runtime_error("Could't send data, check connection");
 		return -1;
 	}
 

@@ -47,7 +47,10 @@ int connectToServer(string ip, short port)
 	}
 
 	CLEAR
-		cout << "Connected!" << endl;
+		char* buf = new char[1];
+		recv(clientSocket, buf, 1, 0);
+		delete[] buf;
+	cout << "Connected!" << endl;
 
 	return (int)clientSocket;
 
@@ -61,8 +64,6 @@ int sendIdenty(int receivedSocket, const char id)
 
 int runApplication(int receivedSocket, string cmd)
 {
-	//string cmd;
-
 	if (cmd == "")
 	{
 		cout << "Enter command:" << endl;
@@ -79,6 +80,28 @@ int runApplication(int receivedSocket, string cmd)
 		return -1;
 	}
 
+	Data request;
+
+	if (receiveAll(receivedSocket, request) < 0)
+	{
+		cout << "Connection with server was lost: " << strerror(errno) << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return -1;
+	}
+
+	if (request.getString() == "0")
+	{
+		cout << "Command \"" << cmd << "\" does not found on server!" << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return 0;
+	}
+
+	cout << request.getString() << endl;
+	cout << "Press ENTER to continue..." << endl;
+	cin.get();
+
 	return 1;
 }
 
@@ -88,6 +111,7 @@ int sendFile(int receivedSocket, string filePath)
 	string pathFileName;
 
 	FILE* fp = nullptr;
+
 	if (filePath == "")
 	{
 		cout << "Enter path to file:" << endl;
@@ -425,11 +449,13 @@ int getFile(int receivedSocket, string filePath)
 
 	do
 	{
+		
 		if (filePath == "") 
 		{
 			cout << "Enter path to file: " << endl;
 			getline(cin, filePath);
 		}
+
 		if (sendAll(receivedSocket, filePath) < 0)
 		{
 			cout << "Connection with server was lost: " << strerror(errno) << endl;
@@ -450,6 +476,8 @@ int getFile(int receivedSocket, string filePath)
 		{
 			cout << "File is not found!" << endl;
 		}
+
+		filePath = "";
 	} 
 	while (request.getString() == "0");
 
@@ -768,20 +796,33 @@ int deleteFile(int receivedSocket, string filePath)
 		return -1;
 	}
 
-	if (request.getString() == "0")
+	if (request.getString() == "-2")
 	{
-		cout << "File \"" << pathFileName << "\" does not exist!" << endl;
+		cout << "File \"" << pathFileName << "\" was not found!" << endl;
 		cout << "Press ENTER to continue..." << endl;
 		cin.get();
 		return 0;
 	}
-	else
+
+	if (request.getString() == "-1")
 	{
-		cout << "File \"" << pathFileName << "\" was successfully deleted!" << endl;
+		cout << "File \"" << pathFileName << "\" is busy!" << endl;
 		cout << "Press ENTER to continue..." << endl;
 		cin.get();
 		return 1;
 	}
+
+	if (request.getString() == "0")
+	{
+		cout << "File \"" << pathFileName << "\" was not found!" << endl;
+		cout << "Press ENTER to continue..." << endl;
+		cin.get();
+		return 0;
+	}
+
+	cout << "File \"" << pathFileName << "\" was successfully deleted!" << endl;
+	cout << "Press ENTER to continue..." << endl;
+	cin.get();
 
 	return 1;
 }
